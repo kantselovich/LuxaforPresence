@@ -16,6 +16,8 @@
 	<string>Used to infer when you’re in a meeting.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Needed to detect when your camera is in use for meeting presence.</string>
+	<key>NSCameraUseContinuityCameraDeviceType</key>
+	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Needed to detect when your microphone is in use for meeting presence.</string>
 </dict>

@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreAudio
+import Foundation
 import OSLog
 
 final class MicCamSignal {
@@ -11,8 +12,8 @@ final class MicCamSignal {
     }
 
     func anyInUse() -> Bool {
-        let audioDevices = AVCaptureDevice.devices(for: .audio)
-        let videoDevices = AVCaptureDevice.devices(for: .video)
+        let audioDevices = captureDevices(for: .audio)
+        let videoDevices = captureDevices(for: .video)
         let audioInUse = audioDevices.contains { $0.isInUseByAnotherApplication }
         let videoInUse = videoDevices.contains { $0.isInUseByAnotherApplication }
         let halRunning = defaultInputIsRunning()
@@ -41,6 +42,38 @@ final class MicCamSignal {
         )
         guard AudioObjectGetPropertyData(dev, &addr, 0, nil, &size, &running) == noErr else { return false }
         return running != 0
+    }
+
+    private func captureDevices(for mediaType: AVMediaType) -> [AVCaptureDevice] {
+        if #available(macOS 10.15, *) {
+            return AVCaptureDevice.DiscoverySession(
+                deviceTypes: discoveryDeviceTypes(for: mediaType),
+                mediaType: mediaType,
+                position: .unspecified
+            ).devices
+        } else {
+            return AVCaptureDevice.devices(for: mediaType)
+        }
+    }
+
+    @available(macOS 10.15, *)
+    private func discoveryDeviceTypes(for mediaType: AVMediaType) -> [AVCaptureDevice.DeviceType] {
+        switch mediaType {
+        case .audio:
+            return [.builtInMicrophone, .externalUnknown]
+        case .video:
+            if #available(macOS 14.0, *), continuityCameraAllowed() {
+                return [.builtInWideAngleCamera, .continuityCamera, .externalUnknown]
+            } else {
+                return [.builtInWideAngleCamera, .externalUnknown]
+            }
+        default:
+            return [.externalUnknown]
+        }
+    }
+
+    private func continuityCameraAllowed() -> Bool {
+        (Bundle.main.object(forInfoDictionaryKey: "NSCameraUseContinuityCameraDeviceType") as? Bool) == true
     }
 
     private func requestAccess(for mediaType: AVMediaType) {
