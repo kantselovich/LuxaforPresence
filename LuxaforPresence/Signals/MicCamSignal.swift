@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreAudio
+import CoreMediaIO
 import Foundation
 import OSLog
 
@@ -17,12 +18,16 @@ final class MicCamSignal: MicCamSignalProtocol {
         let audioInUse = audioDevices.contains { $0.isInUseByAnotherApplication }
         let videoInUse = videoDevices.contains { $0.isInUseByAnotherApplication }
         let coreAudio = coreAudioSnapshot()
+        let cmio = cmioSnapshot(matchingVideoUIDs: Set(videoDevices.map { $0.uniqueID }))
 
         audioDevices.forEach { device in
             logger.debug("Audio device \(device.localizedName, privacy: .public) busy? \(device.isInUseByAnotherApplication)")
         }
         videoDevices.forEach { device in
             logger.debug("Video device \(device.localizedName, privacy: .public) busy? \(device.isInUseByAnotherApplication)")
+        }
+        cmio.statuses.forEach { status in
+            logger.debug("CMIO device \(status.name, privacy: .public) [\(status.id)] uid \(status.uid, privacy: .public) running? \(status.isRunning)")
         }
 
         if let defaultName = coreAudio.defaultDeviceName, let defaultID = coreAudio.defaultDeviceID {
@@ -38,7 +43,8 @@ final class MicCamSignal: MicCamSignalProtocol {
         }
 
         let halRunning = coreAudio.statuses.contains { $0.hasInput && $0.isRunning }
-        return audioInUse || videoInUse || halRunning
+        let cmioRunning = cmio.statuses.contains { $0.isRunning }
+        return audioInUse || videoInUse || halRunning || cmioRunning
     }
 
     private func coreAudioSnapshot() -> CoreAudioSnapshot {
@@ -189,6 +195,90 @@ final class MicCamSignal: MicCamSignalProtocol {
             logger.error("Unknown authorization status \(status.rawValue, privacy: .public) for \(mediaType.rawValue, privacy: .public)")
         }
     }
+
+    private func cmioSnapshot(matchingVideoUIDs videoUIDs: Set<String>) -> CMIODeviceSnapshot {
+        let statuses = cmioDeviceStatuses().filter { status in
+            guard !videoUIDs.isEmpty else { return true }
+            return videoUIDs.contains(status.uid)
+        }
+        return CMIODeviceSnapshot(statuses: statuses)
+    }
+
+    private func cmioDeviceStatuses() -> [CMIODeviceStatus] {
+        return allCMIODeviceIDs().compactMap { id in
+            guard let uid = cmioDeviceUID(id) else { return nil }
+            let name = cmioDeviceName(id) ?? uid
+            let running = cmioDeviceIsRunning(id)
+            return CMIODeviceStatus(id: id, uid: uid, name: name, isRunning: running)
+        }
+    }
+
+    private func allCMIODeviceIDs() -> [CMIOObjectID] {
+        var addr = cmioAddress(selector: CMIOObjectPropertySelector(UInt32(kCMIOHardwarePropertyDevices)))
+        var dataSize: UInt32 = 0
+        guard CMIOObjectGetPropertyDataSize(systemCMIOObjectID, &addr, 0, nil, &dataSize) == noErr else {
+            return []
+        }
+        let count = Int(dataSize) / MemoryLayout<CMIOObjectID>.size
+        var deviceIDs = [CMIOObjectID](repeating: 0, count: count)
+        var dataUsed: UInt32 = 0
+        let status = deviceIDs.withUnsafeMutableBytes { bytes -> OSStatus in
+            guard let base = bytes.baseAddress else { return OSStatus(kCMIOHardwareUnspecifiedError) }
+            return CMIOObjectGetPropertyData(systemCMIOObjectID, &addr, 0, nil, dataSize, &dataUsed, base)
+        }
+        guard status == noErr else {
+            return []
+        }
+        return deviceIDs
+    }
+
+    private func cmioDeviceUID(_ id: CMIOObjectID) -> String? {
+        guard let value = cmioCopyString(objectID: id, selector: CMIOObjectPropertySelector(UInt32(kCMIODevicePropertyDeviceUID))) else {
+            return nil
+        }
+        return value
+    }
+
+    private func cmioDeviceName(_ id: CMIOObjectID) -> String? {
+        return cmioCopyString(objectID: id, selector: CMIOObjectPropertySelector(UInt32(kCMIOObjectPropertyName)))
+    }
+
+    private func cmioDeviceIsRunning(_ id: CMIOObjectID) -> Bool {
+        guard let value = cmioCopyUInt32(objectID: id, selector: CMIOObjectPropertySelector(UInt32(kCMIODevicePropertyDeviceIsRunningSomewhere))) else {
+            return false
+        }
+        return value != 0
+    }
+
+    private func cmioCopyString(objectID: CMIOObjectID, selector: CMIOObjectPropertySelector) -> String? {
+        var addr = cmioAddress(selector: selector)
+        let dataSize = UInt32(MemoryLayout<CFString?>.size)
+        var dataUsed: UInt32 = 0
+        var value: CFString?
+        let status = CMIOObjectGetPropertyData(objectID, &addr, 0, nil, dataSize, &dataUsed, &value)
+        guard status == noErr, let cfValue = value else { return nil }
+        return cfValue as String
+    }
+
+    private func cmioCopyUInt32(objectID: CMIOObjectID, selector: CMIOObjectPropertySelector) -> UInt32? {
+        var addr = cmioAddress(selector: selector)
+        let dataSize = UInt32(MemoryLayout<UInt32>.size)
+        var dataUsed: UInt32 = 0
+        var value: UInt32 = 0
+        let status = CMIOObjectGetPropertyData(objectID, &addr, 0, nil, dataSize, &dataUsed, &value)
+        guard status == noErr else { return nil }
+        return value
+    }
+
+    private func cmioAddress(selector: CMIOObjectPropertySelector) -> CMIOObjectPropertyAddress {
+        CMIOObjectPropertyAddress(
+            mSelector: selector,
+            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+            mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
+        )
+    }
+
+    private var systemCMIOObjectID: CMIOObjectID { CMIOObjectID(UInt32(kCMIOObjectSystemObject)) }
 }
 
 private struct CoreAudioDeviceStatus {
@@ -203,4 +293,15 @@ private struct CoreAudioSnapshot {
     let defaultDeviceName: String?
     let defaultRunning: Bool
     let statuses: [CoreAudioDeviceStatus]
+}
+
+private struct CMIODeviceStatus {
+    let id: CMIOObjectID
+    let uid: String
+    let name: String
+    let isRunning: Bool
+}
+
+private struct CMIODeviceSnapshot {
+    let statuses: [CMIODeviceStatus]
 }
