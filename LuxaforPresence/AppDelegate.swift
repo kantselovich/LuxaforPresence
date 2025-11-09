@@ -27,15 +27,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateStatusIcon(_ state: PresenceState) {
-        let iconName: String = {
+        let icon: NSImage? = {
             switch state {
-            case .inMeeting: return "StatusIconOn"   // red dot
-            case .notMeeting: return "StatusIconOff" // hollow/gray
-            case .unknown: return "StatusIconIdle"
+            case .inMeeting: return StatusIconName.on.image()
+            case .notMeeting: return StatusIconName.off.image()
+            case .unknown: return StatusIconName.idle.image()
             }
         }()
-        statusItem.button?.image = NSImage(named: iconName)
-        statusItem.button?.image?.isTemplate = true
+        statusItem.button?.image = icon
         statusItem.button?.toolTip = "Luxafor: \(state.rawValue)"
     }
 
