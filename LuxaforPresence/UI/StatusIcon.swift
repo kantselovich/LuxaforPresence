@@ -5,18 +5,39 @@
 //  Created by Gemini on 2025-11-05.
 //
 
-import Foundation
 import AppKit
 
-enum StatusIconName: String {
-    case on = "StatusIconOn"
-    case off = "StatusIconOff"
-    case idle = "StatusIconIdle"
-}
+enum StatusIconName {
+    case on, off, idle
 
-func statusImage(_ name: StatusIconName) -> NSImage? {
-    let img = NSImage(named: name.rawValue)
-    img?.isTemplate = true // usually redundant if Asset says “Template”, but harmless
-    return img
-}
+    private struct Asset {
+        let fileName: String
+        let directory: String
+    }
 
+    private var asset: Asset {
+        switch self {
+        case .on:
+            return Asset(fileName: "circle.circle.fill", directory: "Assets.xcassets/StatusIconOn.imageset")
+        case .off:
+            return Asset(fileName: "circle", directory: "Assets.xcassets/StatusIconOff.imageset")
+        case .idle:
+            return Asset(fileName: "questionmark.circle", directory: "Assets.xcassets/StatusIconIdle.imageset")
+        }
+    }
+
+    func image() -> NSImage? {
+        guard
+            let url = Bundle.module.url(
+                forResource: asset.fileName,
+                withExtension: "png",
+                subdirectory: asset.directory
+            ),
+            let image = NSImage(contentsOf: url)
+        else {
+            return nil
+        }
+        image.isTemplate = true
+        return image
+    }
+}

@@ -4,9 +4,9 @@ A small, sandboxed macOS menu bar app that infers if you are in a meeting and up
 
 ## Prerequisites
 
-*   macOS 13.0+
-*   Xcode 14.0+ (for command line tools)
-*   A Luxafor device and your Luxafor API `userId`.
+* macOS 13.0 or newer (Apple Silicon or Intel).
+* Xcode 14.3+ or Xcode Command Line Tools with Swift 5.7 (`xcode-select --install`).
+* A Luxafor flag and your Luxafor webhook `userId`.
 
 ## Setup
 
@@ -26,31 +26,21 @@ A small, sandboxed macOS menu bar app that infers if you are in a meeting and up
     </dict>
     </plist>
     ```
-3.  **Add Status Bar Icons:**
-    *   Create an asset catalog at `LuxaforPresence/Resources/Assets.xcassets`.
-    *   Inside the asset catalog, add three new image sets for the status bar icon:
-        *   `StatusIconOn` (for the "in meeting" state)
-        *   `StatusIconOff` (for the "not in meeting" state)
-        *   `StatusIconIdle` (for the "unknown" state)
-    *   Ensure they are marked as "Template Image" in the asset catalog's attribute inspector.
+3.  **Assets already included:**  
+    The status bar icons (`StatusIconOn/Off/Idle`) ship inside `LuxaforPresence/Resources/Assets.xcassets`; no manual setup is required. If you replace them, keep the same filenames or update `StatusIcon.swift`.
 
 ## How to Build and Run
 
-1.  **Build the project:**
-    ```bash
-    swift build
-    ```
-2.  **Run the application:**
-    The executable will be located in `.build/debug/LuxaforPresence`. You can run it directly, but to launch it as a proper macOS app, it's better to use the `swift run` command:
-    ```bash
-    swift run
-    ```
-    The app will launch, and its icon will appear in the menu bar.
+All commands are executed from the repository root and require the Xcode toolchain.
 
-    To run in release mode for better performance:
-    ```bash
-    swift run -c release
-    ```
+| Action | Command | Notes |
+| --- | --- | --- |
+| Build (debug) | `swift build` | Produces `.build/debug/LuxaforPresence`. |
+| Run (debug) | `swift run` | Launches the menu bar app with sandbox + LSUIElement settings. |
+| Run (release) | `swift run -c release` | Good for long manual tests with the physical Luxafor. |
+| Run tests | `swift test` | Executes `PresenceEngineTests` and `LuxaforClientTests`. |
+
+If you prefer launching the compiled binary manually, run `.build/debug/LuxaforPresence`; the menu bar icon should appear within a second of launch.
 
 ## How to Run Tests
 
