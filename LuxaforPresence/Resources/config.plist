@@ -4,5 +4,21 @@
 <dict>
     <key>userId</key>
     <string>YOUR_USER_ID_HERE</string>
+    <key>pollInterval</key>
+    <real>2</real>
+    <key>meetingBundles</key>
+    <array>
+        <string>us.zoom.xos</string>
+        <string>com.microsoft.teams2</string>
+        <string>com.microsoft.teams</string>
+        <string>com.cisco.webex.meetingapp</string>
+        <string>com.slack.slack</string>
+        <string>com.google.Chrome</string>
+        <string>com.apple.Safari</string>
+    </array>
+    <key>useCalendar</key>
+    <false/>
+    <key>debugAssumeFrontmostImpliesMic</key>
+    <false/>
 </dict>
 </plist>
