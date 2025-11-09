@@ -1,12 +1,18 @@
 import AppKit
+import OSLog
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var timer: Timer?
     private let engine = PresenceEngine()
+    private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "AppDelegate")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.log("Application did finish launching")
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if statusItem.button == nil {
+            logger.error("Status item button is nil; status item will not render")
+        }
         updateStatusIcon(.unknown)
 
         let menu = NSMenu()
@@ -20,10 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.onStateChange = { [weak self] state in
             DispatchQueue.main.async { self?.updateStatusIcon(state) }
         }
+        engine.prepare()
 
         timer = Timer.scheduledTimer(withTimeInterval: engine.config.pollInterval, repeats: true) { [weak self] _ in
+            self?.logger.debug("Timer fired; invoking PresenceEngine.tick()")
             self?.engine.tick()
         }
+        RunLoop.main.add(timer!, forMode: .common)
+        self.logger.log("Scheduled PresenceEngine timer at \(self.engine.config.pollInterval, privacy: .public)s intervals")
     }
 
     private func updateStatusIcon(_ state: PresenceState) {
@@ -36,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }()
         statusItem.button?.image = icon
         statusItem.button?.toolTip = "Luxafor: \(state.rawValue)"
+        logger.debug("Status icon updated to state \(state.rawValue, privacy: .public)")
     }
 
     @objc private func forceOn()  { engine.force(.inMeeting) }
