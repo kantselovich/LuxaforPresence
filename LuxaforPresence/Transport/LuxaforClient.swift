@@ -1,6 +1,11 @@
 import Foundation
 
-final class LuxaforClient {
+protocol LuxaforClientProtocol {
+    func turnOnRed(userId: String)
+    func turnOff(userId: String)
+}
+
+final class LuxaforClient: LuxaforClientProtocol {
     private let endpoint = URL(string: "https://api.luxafor.com/webhook/v1/actions/solid_color")!
     private let session = URLSession(configuration: .ephemeral)
 

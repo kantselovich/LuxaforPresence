@@ -7,6 +7,7 @@ final class PresenceEngine {
         var pollInterval: TimeInterval
         var meetingBundles: Set<String>
         var useCalendar: Bool
+        var debugAssumeFrontmostImpliesMic: Bool
         private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "Config")
 
         init() {
@@ -23,6 +24,7 @@ final class PresenceEngine {
                 "com.apple.Safari"
             ]
             useCalendar = false
+            debugAssumeFrontmostImpliesMic = false
 
             // Try to load from user's config directory first
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent("LuxaforPresence/config.plist")
@@ -44,6 +46,9 @@ final class PresenceEngine {
                 if let useCal = userConfig["useCalendar"] as? Bool {
                     useCalendar = useCal
                 }
+                if let debugFlag = userConfig["debugAssumeFrontmostImpliesMic"] as? Bool {
+                    debugAssumeFrontmostImpliesMic = debugFlag
+                }
             } else if let bundledConfigURL = Bundle.main.url(forResource: "config", withExtension: "plist"),
                       let bundledConfig = NSDictionary(contentsOf: bundledConfigURL) as? [String: Any] {
                 logger.log("Loaded config from bundled resource at \(bundledConfigURL.path, privacy: .public)")
@@ -60,26 +65,44 @@ final class PresenceEngine {
                 if let useCal = bundledConfig["useCalendar"] as? Bool {
                     useCalendar = useCal
                 }
+                if let debugFlag = bundledConfig["debugAssumeFrontmostImpliesMic"] as? Bool {
+                    debugAssumeFrontmostImpliesMic = debugFlag
+                }
             } else {
                 logger.error("No config file found; using default hard-coded values")
             }
             let finalizedPollInterval = pollInterval
             let finalizedBundleCount = meetingBundles.count
             let finalizedUseCalendar = useCalendar
-            logger.log("Config initialized: pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public)")
+            let finalizedDebugFlag = debugAssumeFrontmostImpliesMic
+            logger.log("Config initialized: pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public), debugAssumeFrontmostImpliesMic \(finalizedDebugFlag)")
         }
     }
 
-    var config = Config()
+    let config: Config
     var onStateChange: ((PresenceState) -> Void)?
 
-    private let micCam = MicCamSignal()
-    private let frontApp = FrontmostAppSignal()
-    private let calendar = CalendarSignal()
-    private let luxafor = LuxaforClient()
+    private let micCam: MicCamSignalProtocol
+    private let frontApp: FrontmostAppSignalProtocol
+    private let calendar: CalendarSignalProtocol
+    private let luxafor: LuxaforClientProtocol
     private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "PresenceEngine")
     private var lastState: PresenceState = .unknown
     private var forcedState: PresenceState?
+
+    init(
+        config: Config = Config(),
+        micCam: MicCamSignalProtocol = MicCamSignal(),
+        frontApp: FrontmostAppSignalProtocol = FrontmostAppSignal(),
+        calendar: CalendarSignalProtocol = CalendarSignal(),
+        luxafor: LuxaforClientProtocol = LuxaforClient()
+    ) {
+        self.config = config
+        self.micCam = micCam
+        self.frontApp = frontApp
+        self.calendar = calendar
+        self.luxafor = luxafor
+    }
 
     func prepare() {
         micCam.requestAccessIfNeeded()
@@ -111,8 +134,12 @@ final class PresenceEngine {
             return
         }
 
-        let micOrCam = micCam.anyInUse()
         let isMeetingApp = frontApp.isFrontmostIn(allowlist: config.meetingBundles)
+        let debugForcingMic = config.debugAssumeFrontmostImpliesMic && isMeetingApp
+        let micOrCam = debugForcingMic ? true : micCam.anyInUse()
+        if debugForcingMic {
+            logger.debug("Debug flag forcing mic/cam true because frontmost app is allowlisted")
+        }
         var eventOK = false
         if config.useCalendar { eventOK = calendar.hasOngoingMeetingEvent() }
 

@@ -1,7 +1,7 @@
 import EventKit
 import OSLog
 
-final class CalendarSignal {
+final class CalendarSignal: CalendarSignalProtocol {
     private lazy var store = EKEventStore()
     private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "CalendarSignal")
 
