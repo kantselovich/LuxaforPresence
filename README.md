@@ -48,6 +48,16 @@ If you prefer launching the compiled binary manually, run `.build/debug/LuxaforP
 swift test
 ```
 
+## Package as a DMG
+
+Use the helper script to build the release binary, wrap it in an `.app`, and produce a disk image you can distribute:
+
+```bash
+./scripts/package-dmg.sh
+```
+
+The script defaults to the `release` configuration and creates `dist/LuxaforPresence.dmg` containing `LuxaforPresence.app`. Pass `-c debug` to package a debug build or `-n <VolumeName>` to change the mounted volume title. You’ll need the standard macOS tools (`swift`, `hdiutil`, `plutil`) available in your `$PATH`.
+
 ## Troubleshooting Mic/Cam Detection
 
 1. Tail diagnostics with `log stream --predicate 'subsystem == "com.example.LuxaforPresence"'`. Each timer tick now prints per-device mic/cam states plus CoreAudio and CoreMediaIO information, for example:
