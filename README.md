@@ -70,3 +70,7 @@ The script defaults to the `release` configuration and creates `dist/LuxaforPres
 ## How to Install Dependencies
 
 This project uses native macOS frameworks (`AppKit`, `AVFoundation`, `CoreAudio`, `EventKit`) and has no external package dependencies. The Swift Package Manager will handle the project setup.
+
+## License
+
+LuxaforPresence is available under the [Apache License 2.0](LICENSE.txt), which permits commercial use as long as copyright and attribution notices are preserved.
