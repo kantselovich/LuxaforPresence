@@ -1,0 +1,82 @@
+name: Build & Package
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CLANG_MODULE_CACHE_PATH: ${{ runner.temp }}/clang-module-cache
+  SWIFT_BUILD_FLAGS: -c release
+
+jobs:
+  build_and_test:
+    if: startsWith(github.ref, 'refs/tags/v') == false
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            .cache
+          key: ${{ runner.os }}-swift-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-swift-
+
+      - name: Build release binary
+        run: swift build $SWIFT_BUILD_FLAGS
+        env:
+          CLANG_MODULE_CACHE_PATH: ${{ env.CLANG_MODULE_CACHE_PATH }}
+
+      - name: Run tests
+        run: swift test
+        env:
+          CLANG_MODULE_CACHE_PATH: ${{ env.CLANG_MODULE_CACHE_PATH }}
+
+  build_dmg:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            .cache
+          key: ${{ runner.os }}-swift-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-swift-
+
+      - name: Build release binary
+        run: swift build $SWIFT_BUILD_FLAGS
+        env:
+          CLANG_MODULE_CACHE_PATH: ${{ env.CLANG_MODULE_CACHE_PATH }}
+
+      - name: Package dmg
+        run: ./scripts/package-dmg.sh -c release -n LuxaforPresence
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LuxaforPresence-${{ github.ref_name }}
+          path: |
+            dist/LuxaforPresence.app
+            dist/LuxaforPresence.dmg
