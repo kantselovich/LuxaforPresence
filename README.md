@@ -2,11 +2,22 @@
 
 A small, sandboxed macOS menu bar app that infers if you are in a meeting and updates your Luxafor flag.
 
+## Project Status
+
+LuxaforPresence is currently in an **alpha** stage: the core heuristic (mic/camera + foreground app) works, however need to expanded "in meeting" signals as described in `PLAN_2.md`. 
+Testing and feedback are welcome.
+
+## Screenshots
+
+| Light ON (Red) | Light OFF |
+| --- | --- |
+| ![LuxaforPresence menu when On](docs/images/on.png) | ![LuxaforPresence menu when Off)](docs/images/off.png) |
+
 ## Prerequisites
 
 * macOS 13.0 or newer (Apple Silicon or Intel).
 * Xcode 14.3+ or Xcode Command Line Tools with Swift 5.7 (`xcode-select --install`).
-* A Luxafor flag and your Luxafor webhook `userId`.
+* A [Luxafor flag](https://luxafor.com/product/flag/) and your Luxafor webhook `userId`.
 
 ## Setup
 
