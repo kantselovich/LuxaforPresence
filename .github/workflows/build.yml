@@ -15,7 +15,6 @@ permissions:
   contents: read
 
 env:
-  CLANG_MODULE_CACHE_PATH: ${{ runner.temp }}/clang-module-cache
   SWIFT_BUILD_FLAGS: -c release
 
 jobs:
@@ -36,6 +35,9 @@ jobs:
             .cache
           key: ${{ runner.os }}-swift-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-swift-
+
+      - name: Set build env
+        run: echo "CLANG_MODULE_CACHE_PATH=$RUNNER_TEMP/clang-module-cache" >> "$GITHUB_ENV"
 
       - name: Build release binary
         run: swift build $SWIFT_BUILD_FLAGS
@@ -64,6 +66,9 @@ jobs:
             .cache
           key: ${{ runner.os }}-swift-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-swift-
+
+      - name: Set build env
+        run: echo "CLANG_MODULE_CACHE_PATH=$RUNNER_TEMP/clang-module-cache" >> "$GITHUB_ENV"
 
       - name: Build release binary
         run: swift build $SWIFT_BUILD_FLAGS
