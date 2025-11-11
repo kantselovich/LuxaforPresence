@@ -1,11 +1,38 @@
 # LuxaforPresence for macOS
 
-A small, sandboxed macOS menu bar app that infers if you are in a meeting and updates your Luxafor flag.
+Small macOS menu bar app that checks if you are in a meeting and updates [Luxafor flag](https://luxafor.com/product/flag/) - LED free/busy light.
+
+## Why It Exists
+
+Physical “busy lights” only work when they reflect reality. Relying on calendar events or a single integration means the Luxafor flag often stays green even though you jumped into a huddle, picked up an impromptu Teams call, or joined a vendor Zoom from a clean calendar. The reverse also happens: long-running audio tools such as Motiv Mix, Loopback, or stream decks keep the mic interface open and force you to turn the Luxafor flag off by hand. LuxaforPresence exists to remove that manual babysitting.
+
+Real-world presence requires combining multiple cues:
+
+- **Foreground apps** – if Zoom, Teams, Meet, or Slack is frontmost, you are likely in a conversation even if the calendar is empty.
+- **Mic/camera state** – CoreAudio, CoreMediaIO, and AVFoundation tell us when audio or video devices are actually in use.
+- **Calendar context** (in testing) – meetings on the calendar help catch muted webinars or screen shares where neither mic nor camera is hot.
+- **Screen sharing & audio output** (roadmap) – presenting your screen or streaming audio from a conference app is just as strong a signal as talking.
+- **Manual overrides** – you can force the Luxafor on/off for edge cases, and the history log captures those overrides for later analysis.
+
+LuxaforPresence runs locally, merges those signals, and pushes the final state to the Luxafor cloud API so your desk flag stays honest without leaking the details of every meeting.
 
 ## Project Status
 
 LuxaforPresence is currently in an **alpha** stage: the core heuristic (mic/camera + foreground app) works, however need to expanded "in meeting" signals as described in `PLAN_2.md`. 
 Testing and feedback are welcome.
+
+## How Detection Works
+
+1. **Signals collect raw facts**
+   - `MicCamSignal` inspects mic and camera devices (with a blocklist for “always-hot” virtual devices on a roadmap) to decide if audio or video is live.
+   - `AppSignal` tracks the foreground bundle and checks it against an allowlist of conferencing apps.
+   - Upcoming additions such as `CalendarSignal`, `ScreenShareSignal`, and `AudioOutputSignal` are outlined in `PLAN_2.md` and will join the same pipeline.
+2. **PresenceEngine scores the signals**
+   Each tick, the engine assigns weights to the active signals, debounces flapping states, and decides whether you are “in a meeting.” Manual overrides feed into the same logic so you can temporarily pin the light.
+3. **LuxaforTransport updates the flag**
+   When the inferred state changes, the transport layer sends the new color to the Luxafor webhook API. All requests are driven from the local machine; no external service stores your history.
+
+See `LuxaforPresence/Model` and `LuxaforPresence/Signals` for the types involved, and `LuxaforPresence/Resources/config.plist` for tunables such as the allowlisted bundles.
 
 ## Screenshots
 
