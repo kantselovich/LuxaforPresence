@@ -20,5 +20,13 @@
     <false/>
     <key>debugAssumeFrontmostImpliesMic</key>
     <false/>
+    <key>enabledMeetingDetectors</key>
+    <array>
+        <string>Zoom</string>
+        <string>Webex</string>
+        <string>Teams</string>
+        <string>Slack</string>
+        <string>GoogleMeet</string>
+    </array>
 </dict>
 </plist>

@@ -8,6 +8,7 @@ final class PresenceEngine {
         var meetingBundles: Set<String>
         var useCalendar: Bool
         var debugAssumeFrontmostImpliesMic: Bool
+        var enabledMeetingDetectors: Set<String>?
         private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "Config")
 
         init() {
@@ -25,6 +26,7 @@ final class PresenceEngine {
             ]
             useCalendar = false
             debugAssumeFrontmostImpliesMic = false
+            enabledMeetingDetectors = nil
 
             // Try to load from user's config directory first
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent("LuxaforPresence/config.plist")
@@ -49,6 +51,9 @@ final class PresenceEngine {
                 if let debugFlag = userConfig["debugAssumeFrontmostImpliesMic"] as? Bool {
                     debugAssumeFrontmostImpliesMic = debugFlag
                 }
+                if let detectors = userConfig["enabledMeetingDetectors"] as? [String] {
+                    enabledMeetingDetectors = Set(detectors)
+                }
             } else if let bundledConfigURL = Bundle.main.url(forResource: "config", withExtension: "plist"),
                       let bundledConfig = NSDictionary(contentsOf: bundledConfigURL) as? [String: Any] {
                 logger.log("Loaded config from bundled resource at \(bundledConfigURL.path, privacy: .public)")
@@ -68,6 +73,9 @@ final class PresenceEngine {
                 if let debugFlag = bundledConfig["debugAssumeFrontmostImpliesMic"] as? Bool {
                     debugAssumeFrontmostImpliesMic = debugFlag
                 }
+                if let detectors = bundledConfig["enabledMeetingDetectors"] as? [String] {
+                    enabledMeetingDetectors = Set(detectors)
+                }
             } else {
                 logger.error("No config file found; using default hard-coded values")
             }
@@ -75,7 +83,9 @@ final class PresenceEngine {
             let finalizedBundleCount = meetingBundles.count
             let finalizedUseCalendar = useCalendar
             let finalizedDebugFlag = debugAssumeFrontmostImpliesMic
-            logger.log("Config initialized: pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public), debugAssumeFrontmostImpliesMic \(finalizedDebugFlag)")
+            let finalizedMeetingDetectorCount = enabledMeetingDetectors?.count ?? 0
+            let meetingDetectorMode = enabledMeetingDetectors == nil ? "all" : "custom"
+            logger.log("Config initialized: pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public), debugAssumeFrontmostImpliesMic \(finalizedDebugFlag), meeting detectors \(meetingDetectorMode, privacy: .public) count \(finalizedMeetingDetectorCount, privacy: .public)")
         }
     }
 
@@ -85,6 +95,7 @@ final class PresenceEngine {
     private let micCam: MicCamSignalProtocol
     private let frontApp: FrontmostAppSignalProtocol
     private let calendar: CalendarSignalProtocol
+    private let meetingDetector: MeetingDetectorProtocol
     private let luxafor: LuxaforClientProtocol
     private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "PresenceEngine")
     private var lastState: PresenceState = .unknown
@@ -95,12 +106,14 @@ final class PresenceEngine {
         micCam: MicCamSignalProtocol = MicCamSignal(),
         frontApp: FrontmostAppSignalProtocol = FrontmostAppSignal(),
         calendar: CalendarSignalProtocol = CalendarSignal(),
+        meetingDetector: MeetingDetectorProtocol? = nil,
         luxafor: LuxaforClientProtocol = LuxaforClient()
     ) {
         self.config = config
         self.micCam = micCam
         self.frontApp = frontApp
         self.calendar = calendar
+        self.meetingDetector = meetingDetector ?? MeetingDetector(enabledNames: config.enabledMeetingDetectors)
         self.luxafor = luxafor
     }
 
@@ -134,19 +147,22 @@ final class PresenceEngine {
             return
         }
 
-        let isMeetingApp = frontApp.isFrontmostIn(allowlist: config.meetingBundles)
-        let debugForcingMic = config.debugAssumeFrontmostImpliesMic && isMeetingApp
-        let micOrCam = debugForcingMic ? true : micCam.anyInUse()
-        if debugForcingMic {
-            logger.debug("Debug flag forcing mic/cam true because frontmost app is allowlisted")
+        let detectorMeetingActive = meetingDetector.isMeetingActive()
+        let frontmostIsMeetingApp = frontApp.isFrontmostIn(allowlist: config.meetingBundles)
+        let debugForcingMeeting = config.debugAssumeFrontmostImpliesMic && frontmostIsMeetingApp
+        if debugForcingMeeting {
+            logger.debug("Debug flag forcing meeting active because frontmost app is allowlisted")
         }
-        var eventOK = false
-        if config.useCalendar { eventOK = calendar.hasOngoingMeetingEvent() }
+        let calendarMeetingActive = config.useCalendar ? calendar.hasOngoingMeetingEvent() : false
+        let meetingActive = detectorMeetingActive || calendarMeetingActive || debugForcingMeeting
+        let cameraActive = micCam.isCameraInUse()
+        let micActive = micCam.isMicrophoneInUse()
 
-        let newState: PresenceState =
-            (micOrCam && (isMeetingApp || eventOK)) ? .inMeeting : .notMeeting
+        let newState: PresenceState = (meetingActive || cameraActive) ? .inMeeting : .notMeeting
 
-        logger.debug("Signals -> mic/cam: \(micOrCam), frontmost meeting: \(isMeetingApp), calendar: \(eventOK)")
+        logger.debug(
+            "Signals -> meeting detector: \(detectorMeetingActive), calendar: \(calendarMeetingActive), debug frontmost: \(debugForcingMeeting), camera: \(cameraActive), mic: \(micActive)"
+        )
         logger.log("Proposed state \(newState.rawValue, privacy: .public) (previous \(self.lastState.rawValue, privacy: .public))")
 
         if newState != lastState {

@@ -12,24 +12,13 @@ final class MicCamSignal: MicCamSignalProtocol {
         requestAccess(for: .video)
     }
 
-    func anyInUse() -> Bool {
+    func isMicrophoneInUse() -> Bool {
         let audioDevices = captureDevices(for: .audio)
-        let videoDevices = captureDevices(for: .video)
-        let audioInUse = audioDevices.contains { $0.isInUseByAnotherApplication }
-        let videoInUse = videoDevices.contains { $0.isInUseByAnotherApplication }
         let coreAudio = coreAudioSnapshot()
-        let cmio = cmioSnapshot(matchingVideoUIDs: Set(videoDevices.map { $0.uniqueID }))
 
         audioDevices.forEach { device in
             logger.debug("Audio device \(device.localizedName, privacy: .public) busy? \(device.isInUseByAnotherApplication)")
         }
-        videoDevices.forEach { device in
-            logger.debug("Video device \(device.localizedName, privacy: .public) busy? \(device.isInUseByAnotherApplication)")
-        }
-        cmio.statuses.forEach { status in
-            logger.debug("CMIO device \(status.name, privacy: .public) [\(status.id)] uid \(status.uid, privacy: .public) running? \(status.isRunning)")
-        }
-
         if let defaultName = coreAudio.defaultDeviceName, let defaultID = coreAudio.defaultDeviceID {
             logger.debug("HAL default input \(defaultName, privacy: .public) [\(defaultID)] running? \(coreAudio.defaultRunning)")
         } else {
@@ -42,9 +31,29 @@ final class MicCamSignal: MicCamSignalProtocol {
             )
         }
 
+        let audioInUse = audioDevices.contains { $0.isInUseByAnotherApplication }
         let halRunning = coreAudio.statuses.contains { $0.hasInput && $0.isRunning }
+        return audioInUse || halRunning
+    }
+
+    func isCameraInUse() -> Bool {
+        let videoDevices = captureDevices(for: .video)
+        let cmio = cmioSnapshot(matchingVideoUIDs: Set(videoDevices.map { $0.uniqueID }))
+
+        videoDevices.forEach { device in
+            logger.debug("Video device \(device.localizedName, privacy: .public) busy? \(device.isInUseByAnotherApplication)")
+        }
+        cmio.statuses.forEach { status in
+            logger.debug("CMIO device \(status.name, privacy: .public) [\(status.id)] uid \(status.uid, privacy: .public) running? \(status.isRunning)")
+        }
+
+        let videoInUse = videoDevices.contains { $0.isInUseByAnotherApplication }
         let cmioRunning = cmio.statuses.contains { $0.isRunning }
-        return audioInUse || videoInUse || halRunning || cmioRunning
+        return videoInUse || cmioRunning
+    }
+
+    func anyInUse() -> Bool {
+        isMicrophoneInUse() || isCameraInUse()
     }
 
     private func coreAudioSnapshot() -> CoreAudioSnapshot {
