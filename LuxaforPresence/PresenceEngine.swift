@@ -147,7 +147,9 @@ final class PresenceEngine {
             return
         }
 
+        logger.debug("Evaluating meeting detectors")
         let detectorMeetingActive = meetingDetector.isMeetingActive()
+        logger.debug("Meeting detector evaluation complete; active=\(detectorMeetingActive)")
         let frontmostIsMeetingApp = frontApp.isFrontmostIn(allowlist: config.meetingBundles)
         let debugForcingMeeting = config.debugAssumeFrontmostImpliesMic && frontmostIsMeetingApp
         if debugForcingMeeting {
