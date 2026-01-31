@@ -56,11 +56,11 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
             if let domIdentifier = node.domIdentifier, domIdentifiers.contains(domIdentifier) {
                 matchedDomIdentifiers.insert(domIdentifier)
             }
-            if let label = node.label, let role = node.role, role == "AXToolbar" {
+            if let role = node.role, role == "AXToolbar" {
                 toolbarRoleCount += 1
-                if toolbarLabels.contains(label) {
-                    matchedToolbarLabels.insert(label)
-                }
+            }
+            if let label = node.label, toolbarLabels.contains(label) {
+                matchedToolbarLabels.insert(label)
             }
         }
 

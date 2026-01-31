@@ -20,7 +20,7 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
     private let maxDepth: Int
     private let maxNodes: Int
 
-    init(maxDepth: Int = 12, maxNodes: Int = 1500) {
+    init(maxDepth: Int = 24, maxNodes: Int = 1500) {
         self.maxDepth = maxDepth
         self.maxNodes = maxNodes
     }
@@ -202,6 +202,13 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
         guard error == .success else {
             errorCounts[attribute, default: 0] += 1
             return nil
+        }
+        if let attributedValue = value as? NSAttributedString {
+            let stringValue = attributedValue.string
+            if stringValue.isEmpty {
+                emptyCounts[attribute, default: 0] += 1
+            }
+            return stringValue
         }
         guard let stringValue = value as? String else {
             nonStringCounts[attribute, default: 0] += 1
