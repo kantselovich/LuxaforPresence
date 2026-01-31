@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import OSLog
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -6,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private let engine = PresenceEngine()
     private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "AppDelegate")
+    private let accessibilityPromptShownKey = "AccessibilityPromptShown"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.log("Application did finish launching")
@@ -27,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { self?.updateStatusIcon(state) }
         }
         engine.prepare()
+        promptForAccessibilityIfNeeded()
 
         timer = Timer.scheduledTimer(withTimeInterval: engine.config.pollInterval, repeats: true) { [weak self] _ in
             self?.logger.debug("Timer fired; invoking PresenceEngine.tick()")
@@ -47,6 +50,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.image = icon
         statusItem.button?.toolTip = "Luxafor: \(state.rawValue)"
         logger.debug("Status icon updated to state \(state.rawValue, privacy: .public)")
+    }
+
+    private func promptForAccessibilityIfNeeded() {
+        guard !AXIsProcessTrusted() else { return }
+        guard !UserDefaults.standard.bool(forKey: accessibilityPromptShownKey) else { return }
+
+        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        UserDefaults.standard.set(true, forKey: accessibilityPromptShownKey)
+
+        let alert = NSAlert()
+        alert.messageText = "Enable Accessibility Access"
+        alert.informativeText = "LuxaforPresence needs Accessibility access to read meeting UI controls. Open System Settings → Privacy & Security → Accessibility, then enable LuxaforPresence (or Terminal/Xcode if running from there)."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+        logger.info("Prompted for Accessibility access")
     }
 
     @objc private func forceOn()  { engine.force(.inMeeting) }
