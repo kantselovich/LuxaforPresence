@@ -7,11 +7,15 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
     private let isProcessRunning: ([String]) -> Bool
     private let processNames = ["Slack"]
     private let bundleIdentifiers = ["com.tinyspeck.slackmacgap"]
-    private let huddleAnchor = "Huddles actions (toolbar)"
+    private let huddleAnchorPrefix = "Huddle:"
+    private let huddleToolbarLabel = "Huddles actions"
     private let huddleControls: [(label: String, role: String)] = [
         ("Share your screen", "AXCheckBox"),
         ("More actions", "AXPopUpButton"),
         ("View members", "AXPopUpButton"),
+        ("Share your screen", "AXButton"),
+        ("More actions", "AXButton"),
+        ("View members", "AXButton"),
     ]
 
     var name: String { "Slack" }
@@ -36,8 +40,13 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
         }
 
         let anchorFound = nodes.contains { node in
-            (node.placeholder?.contains(huddleAnchor) ?? false)
-                || (node.roleDescription?.contains(huddleAnchor) ?? false)
+            if let label = node.label, label.hasPrefix(huddleAnchorPrefix) {
+                return true
+            }
+            if let label = node.label, label == huddleToolbarLabel {
+                return true
+            }
+            return false
         }
         if !anchorFound {
             logger.debug("Slack AX snapshot: nodes=\(nodes.count) anchorFound=false")

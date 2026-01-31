@@ -7,8 +7,8 @@ final class SlackMeetingDetectorTests: XCTestCase {
         provider.nextSnapshot = [
             AXNodeSnapshot(
                 role: "AXGroup",
-                roleDescription: "Huddles actions (toolbar) [BrowserAccessibilityCocoa]",
-                label: nil,
+                roleDescription: "group",
+                label: "Huddle: test",
                 placeholder: nil,
                 domIdentifier: nil
             ),
