@@ -64,12 +64,11 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
                 matchedControls.insert(normalizedLabel)
             }
         }
-        let controlFound = !matchedControls.isEmpty
         logger.debug("Slack AX snapshot: nodes=\(nodes.count) anchorFound=true matchedControls=\(matchedControls.sorted(), privacy: .public)")
 
-        if !controlFound {
-            logger.debug("Slack huddle not detected (no control matches)")
+        if matchedControls.isEmpty {
+            logger.debug("Slack huddle detected via anchor (no control matches)")
         }
-        return controlFound
+        return true
     }
 }
