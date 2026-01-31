@@ -20,7 +20,7 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
     private let maxDepth: Int
     private let maxNodes: Int
 
-    init(maxDepth: Int = 24, maxNodes: Int = 1500) {
+    init(maxDepth: Int = 36, maxNodes: Int = 3600) {
         self.maxDepth = maxDepth
         self.maxNodes = maxNodes
     }

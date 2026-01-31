@@ -9,13 +9,15 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
     private let bundleIdentifiers = ["com.tinyspeck.slackmacgap"]
     private let huddleAnchorPrefix = "Huddle:"
     private let huddleToolbarLabel = "Huddles actions"
-    private let huddleControls: [(label: String, role: String)] = [
-        ("Share your screen", "AXCheckBox"),
-        ("More actions", "AXPopUpButton"),
-        ("View members", "AXPopUpButton"),
-        ("Share your screen", "AXButton"),
-        ("More actions", "AXButton"),
-        ("View members", "AXButton"),
+    private let huddleControlLabels = [
+        "Share your screen",
+        "More actions",
+        "View members",
+    ]
+    private let huddleControlRoles = [
+        "AXCheckBox",
+        "AXPopUpButton",
+        "AXButton",
     ]
 
     var name: String { "Slack" }
@@ -56,8 +58,10 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
         var matchedControls = Set<String>()
         for node in nodes {
             guard let label = node.label, let role = node.role else { continue }
-            if huddleControls.contains(where: { $0.label == label && $0.role == role }) {
-                matchedControls.insert(label)
+            guard huddleControlRoles.contains(role) else { continue }
+            let normalizedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if huddleControlLabels.contains(where: { normalizedLabel.localizedCaseInsensitiveContains($0) }) {
+                matchedControls.insert(normalizedLabel)
             }
         }
         let controlFound = !matchedControls.isEmpty
