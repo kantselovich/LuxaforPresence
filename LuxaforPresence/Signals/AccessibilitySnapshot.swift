@@ -34,6 +34,9 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
             logger.debug("AX snapshot: no running app for bundles=\(bundleIdentifiers, privacy: .public) names=\(processNames, privacy: .public)")
             return []
         }
+        logger.debug(
+            "AX snapshot: app bundle=\(app.bundleIdentifier ?? "unknown", privacy: .public) name=\(app.localizedName ?? "unknown", privacy: .public) pid=\(app.processIdentifier, privacy: .public)"
+        )
 
         let root = AXUIElementCreateApplication(app.processIdentifier)
         var queue: [(AXUIElement, Int)] = [(root, 0)]
@@ -41,14 +44,26 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
         var maxDepthVisited = 0
         var maxNodesHit = false
         var maxDepthHit = false
+        var dequeuedCount = 0
+        var appendedCount = 0
         var roleCount = 0
         var roleDescriptionCount = 0
         var labelCount = 0
         var placeholderCount = 0
         var domIdentifierCount = 0
+        var attributeErrorCounts: [String: Int] = [:]
+        var attributeEmptyCounts: [String: Int] = [:]
+        var attributeNonStringCounts: [String: Int] = [:]
+        var childrenFetchErrorCount = 0
+        var childrenNonArrayCount = 0
+        var childBucketZero = 0
+        var childBucketSmall = 0
+        var childBucketMedium = 0
+        var childBucketLarge = 0
 
         while let (element, depth) = queue.first {
             queue.removeFirst()
+            dequeuedCount += 1
             if nodes.count >= maxNodes {
                 maxNodesHit = true
                 break
@@ -57,17 +72,53 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
                 maxDepthVisited = depth
             }
 
-            let role = stringAttribute(element, kAXRoleAttribute)
-            let roleDescription = stringAttribute(element, kAXRoleDescriptionAttribute)
-            var label = stringAttribute(element, kAXLabelValueAttribute)
+            let role = stringAttribute(
+                element,
+                kAXRoleAttribute,
+                errorCounts: &attributeErrorCounts,
+                emptyCounts: &attributeEmptyCounts,
+                nonStringCounts: &attributeNonStringCounts
+            )
+            let roleDescription = stringAttribute(
+                element,
+                kAXRoleDescriptionAttribute,
+                errorCounts: &attributeErrorCounts,
+                emptyCounts: &attributeEmptyCounts,
+                nonStringCounts: &attributeNonStringCounts
+            )
+            var label = stringAttribute(
+                element,
+                kAXLabelValueAttribute,
+                errorCounts: &attributeErrorCounts,
+                emptyCounts: &attributeEmptyCounts,
+                nonStringCounts: &attributeNonStringCounts
+            )
             if (label == nil || label?.isEmpty == true), role != (kAXWindowRole as String) {
-                let title = stringAttribute(element, kAXTitleAttribute)
+                let title = stringAttribute(
+                    element,
+                    kAXTitleAttribute,
+                    errorCounts: &attributeErrorCounts,
+                    emptyCounts: &attributeEmptyCounts,
+                    nonStringCounts: &attributeNonStringCounts
+                )
                 if let title, !title.isEmpty {
                     label = title
                 }
             }
-            let placeholder = stringAttribute(element, kAXPlaceholderValueAttribute)
-            let domIdentifier = stringAttribute(element, kAXDOMIdentifierAttribute)
+            let placeholder = stringAttribute(
+                element,
+                kAXPlaceholderValueAttribute,
+                errorCounts: &attributeErrorCounts,
+                emptyCounts: &attributeEmptyCounts,
+                nonStringCounts: &attributeNonStringCounts
+            )
+            let domIdentifier = stringAttribute(
+                element,
+                kAXDOMIdentifierAttribute,
+                errorCounts: &attributeErrorCounts,
+                emptyCounts: &attributeEmptyCounts,
+                nonStringCounts: &attributeNonStringCounts
+            )
             if role != nil { roleCount += 1 }
             if roleDescription != nil { roleDescriptionCount += 1 }
             if label != nil { labelCount += 1 }
@@ -84,17 +135,40 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
                 )
             )
 
+            let children = children(
+                of: element,
+                fetchErrorCount: &childrenFetchErrorCount,
+                nonArrayCount: &childrenNonArrayCount
+            )
+            let childCount = children?.count ?? 0
+            if childCount == 0 {
+                childBucketZero += 1
+            } else if childCount <= 3 {
+                childBucketSmall += 1
+            } else if childCount <= 10 {
+                childBucketMedium += 1
+            } else {
+                childBucketLarge += 1
+            }
+
             if depth < maxDepth {
-                if let children = children(of: element) {
+                if let children, !children.isEmpty {
+                    appendedCount += children.count
                     children.forEach { queue.append(($0, depth + 1)) }
                 }
-            } else if let children = children(of: element), !children.isEmpty {
+            } else if let children, !children.isEmpty {
                 maxDepthHit = true
             }
         }
 
         logger.debug(
-            "AX snapshot summary: nodes=\(nodes.count) maxDepthVisited=\(maxDepthVisited) maxDepth=\(self.maxDepth) maxDepthHit=\(maxDepthHit) maxNodes=\(self.maxNodes) maxNodesHit=\(maxNodesHit) role=\(roleCount) roleDesc=\(roleDescriptionCount) label=\(labelCount) placeholder=\(placeholderCount) domId=\(domIdentifierCount)"
+            "AX snapshot summary: nodes=\(nodes.count) dequeued=\(dequeuedCount) appended=\(appendedCount) maxDepthVisited=\(maxDepthVisited) maxDepth=\(self.maxDepth) maxDepthHit=\(maxDepthHit) maxNodes=\(self.maxNodes) maxNodesHit=\(maxNodesHit) role=\(roleCount) roleDesc=\(roleDescriptionCount) label=\(labelCount) placeholder=\(placeholderCount) domId=\(domIdentifierCount)"
+        )
+        logger.debug(
+            "AX snapshot attributes: errors=\(self.formatCounts(attributeErrorCounts), privacy: .public) empty=\(self.formatCounts(attributeEmptyCounts), privacy: .public) nonString=\(self.formatCounts(attributeNonStringCounts), privacy: .public)"
+        )
+        logger.debug(
+            "AX snapshot children: zero=\(childBucketZero) small=\(childBucketSmall) medium=\(childBucketMedium) large=\(childBucketLarge) fetchErrors=\(childrenFetchErrorCount) nonArray=\(childrenNonArrayCount)"
         )
         return nodes
     }
@@ -116,23 +190,55 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
         }
     }
 
-    private func stringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
+    private func stringAttribute(
+        _ element: AXUIElement,
+        _ attribute: String,
+        errorCounts: inout [String: Int],
+        emptyCounts: inout [String: Int],
+        nonStringCounts: inout [String: Int]
+    ) -> String? {
         var value: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
-        guard error == .success else { return nil }
-        return value as? String
+        guard error == .success else {
+            errorCounts[attribute, default: 0] += 1
+            return nil
+        }
+        guard let stringValue = value as? String else {
+            nonStringCounts[attribute, default: 0] += 1
+            return nil
+        }
+        if stringValue.isEmpty {
+            emptyCounts[attribute, default: 0] += 1
+        }
+        return stringValue
     }
 
-    private func children(of element: AXUIElement) -> [AXUIElement]? {
+    private func children(
+        of element: AXUIElement,
+        fetchErrorCount: inout Int,
+        nonArrayCount: inout Int
+    ) -> [AXUIElement]? {
         var value: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
-        guard error == .success else { return nil }
+        guard error == .success else {
+            fetchErrorCount += 1
+            return nil
+        }
         if let children = value as? [AXUIElement] {
             return children
         }
         if let array = value as? [Any] {
             return array.map { $0 as! AXUIElement }
         }
+        nonArrayCount += 1
         return nil
+    }
+
+    private func formatCounts(_ counts: [String: Int]) -> String {
+        guard !counts.isEmpty else { return "none" }
+        return counts
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: ",")
     }
 }

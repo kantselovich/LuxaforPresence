@@ -31,28 +31,41 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
     func isMeetingActive() -> Bool {
         // Teams meeting detection uses AX-only, privacy-safe signals from call controls.
         guard isProcessRunning(processNames) else {
-            logger.debug("Teams process not running")
+            logger.debug("Teams process not running (names=\(self.processNames, privacy: .public))")
             return false
         }
         guard let nodes = snapshotProvider.snapshot(bundleIdentifiers: bundleIdentifiers, processNames: processNames) else {
             logger.debug("AX snapshot unavailable (not authorized or failed)")
             return false
         }
+        if nodes.isEmpty {
+            logger.debug("Teams AX snapshot empty (process running)")
+        }
 
         var matchedDomIdentifiers = Set<String>()
         var matchedToolbarLabels = Set<String>()
+        var roleCount = 0
+        var labelCount = 0
+        var domIdentifierCount = 0
+        var toolbarRoleCount = 0
 
         for node in nodes {
+            if node.role != nil { roleCount += 1 }
+            if node.label != nil { labelCount += 1 }
+            if node.domIdentifier != nil { domIdentifierCount += 1 }
             if let domIdentifier = node.domIdentifier, domIdentifiers.contains(domIdentifier) {
                 matchedDomIdentifiers.insert(domIdentifier)
             }
-            if let label = node.label, let role = node.role, role == "AXToolbar", toolbarLabels.contains(label) {
-                matchedToolbarLabels.insert(label)
+            if let label = node.label, let role = node.role, role == "AXToolbar" {
+                toolbarRoleCount += 1
+                if toolbarLabels.contains(label) {
+                    matchedToolbarLabels.insert(label)
+                }
             }
         }
 
         logger.debug(
-            "Teams AX snapshot: nodes=\(nodes.count) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public)"
+            "Teams AX snapshot: nodes=\(nodes.count) role=\(roleCount) label=\(labelCount) domId=\(domIdentifierCount) toolbarRole=\(toolbarRoleCount) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public)"
         )
 
         if !matchedDomIdentifiers.isEmpty {
