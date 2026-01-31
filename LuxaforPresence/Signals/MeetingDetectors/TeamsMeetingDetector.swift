@@ -30,22 +30,42 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
 
     func isMeetingActive() -> Bool {
         // Teams meeting detection uses AX-only, privacy-safe signals from call controls.
-        guard isProcessRunning(processNames) else { return false }
+        guard isProcessRunning(processNames) else {
+            logger.debug("Teams process not running")
+            return false
+        }
         guard let nodes = snapshotProvider.snapshot(bundleIdentifiers: bundleIdentifiers, processNames: processNames) else {
             logger.debug("AX snapshot unavailable (not authorized or failed)")
             return false
         }
 
-        if nodes.contains(where: { node in
-            guard let domIdentifier = node.domIdentifier else { return false }
-            return domIdentifiers.contains(domIdentifier)
-        }) {
+        var matchedDomIdentifiers = Set<String>()
+        var matchedToolbarLabels = Set<String>()
+
+        for node in nodes {
+            if let domIdentifier = node.domIdentifier, domIdentifiers.contains(domIdentifier) {
+                matchedDomIdentifiers.insert(domIdentifier)
+            }
+            if let label = node.label, let role = node.role, role == "AXToolbar", toolbarLabels.contains(label) {
+                matchedToolbarLabels.insert(label)
+            }
+        }
+
+        logger.debug(
+            "Teams AX snapshot: nodes=\(nodes.count) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public)"
+        )
+
+        if !matchedDomIdentifiers.isEmpty {
+            logger.debug("Teams meeting detected via DOM identifiers")
             return true
         }
 
-        return nodes.contains { node in
-            guard let label = node.label, let role = node.role else { return false }
-            return role == "AXToolbar" && toolbarLabels.contains(label)
+        if !matchedToolbarLabels.isEmpty {
+            logger.debug("Teams meeting detected via toolbar label fallback")
+            return true
         }
+
+        logger.debug("Teams meeting not detected (no matching AX controls)")
+        return false
     }
 }

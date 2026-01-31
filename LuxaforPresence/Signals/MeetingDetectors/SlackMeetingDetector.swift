@@ -26,7 +26,10 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
 
     func isMeetingActive() -> Bool {
         // Slack huddle detection uses AX-only, privacy-safe signals from the huddle control strip.
-        guard isProcessRunning(processNames) else { return false }
+        guard isProcessRunning(processNames) else {
+            logger.debug("Slack process not running")
+            return false
+        }
         guard let nodes = snapshotProvider.snapshot(bundleIdentifiers: bundleIdentifiers, processNames: processNames) else {
             logger.debug("AX snapshot unavailable (not authorized or failed)")
             return false
@@ -36,13 +39,24 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
             (node.placeholder?.contains(huddleAnchor) ?? false)
                 || (node.roleDescription?.contains(huddleAnchor) ?? false)
         }
-        guard anchorFound else { return false }
-
-        let controlFound = nodes.contains { node in
-            guard let label = node.label, let role = node.role else { return false }
-            return huddleControls.contains { $0.label == label && $0.role == role }
+        if !anchorFound {
+            logger.debug("Slack AX snapshot: nodes=\(nodes.count) anchorFound=false")
+            return false
         }
 
+        var matchedControls = Set<String>()
+        for node in nodes {
+            guard let label = node.label, let role = node.role else { continue }
+            if huddleControls.contains(where: { $0.label == label && $0.role == role }) {
+                matchedControls.insert(label)
+            }
+        }
+        let controlFound = !matchedControls.isEmpty
+        logger.debug("Slack AX snapshot: nodes=\(nodes.count) anchorFound=true matchedControls=\(matchedControls.sorted(), privacy: .public)")
+
+        if !controlFound {
+            logger.debug("Slack huddle not detected (no control matches)")
+        }
         return controlFound
     }
 }

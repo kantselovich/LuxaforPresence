@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Foundation
+import OSLog
 
 struct AXNodeSnapshot: Equatable {
     let role: String?
@@ -15,6 +16,7 @@ protocol AXSnapshotProviding {
 }
 
 final class AccessibilitySnapshotProvider: AXSnapshotProviding {
+    private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "AccessibilitySnapshot")
     private let maxDepth: Int
     private let maxNodes: Int
 
@@ -24,19 +26,35 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
     }
 
     func snapshot(bundleIdentifiers: [String], processNames: [String]) -> [AXNodeSnapshot]? {
-        guard AXIsProcessTrusted() else { return nil }
+        guard AXIsProcessTrusted() else {
+            logger.info("AX snapshot unavailable: not trusted")
+            return nil
+        }
         guard let app = runningApplication(bundleIdentifiers: bundleIdentifiers, processNames: processNames) else {
+            logger.debug("AX snapshot: no running app for bundles=\(bundleIdentifiers, privacy: .public) names=\(processNames, privacy: .public)")
             return []
         }
 
         let root = AXUIElementCreateApplication(app.processIdentifier)
         var queue: [(AXUIElement, Int)] = [(root, 0)]
         var nodes: [AXNodeSnapshot] = []
+        var maxDepthVisited = 0
+        var maxNodesHit = false
+        var maxDepthHit = false
+        var roleCount = 0
+        var roleDescriptionCount = 0
+        var labelCount = 0
+        var placeholderCount = 0
+        var domIdentifierCount = 0
 
         while let (element, depth) = queue.first {
             queue.removeFirst()
             if nodes.count >= maxNodes {
+                maxNodesHit = true
                 break
+            }
+            if depth > maxDepthVisited {
+                maxDepthVisited = depth
             }
 
             let role = stringAttribute(element, kAXRoleAttribute)
@@ -50,6 +68,11 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
             }
             let placeholder = stringAttribute(element, kAXPlaceholderValueAttribute)
             let domIdentifier = stringAttribute(element, kAXDOMIdentifierAttribute)
+            if role != nil { roleCount += 1 }
+            if roleDescription != nil { roleDescriptionCount += 1 }
+            if label != nil { labelCount += 1 }
+            if placeholder != nil { placeholderCount += 1 }
+            if domIdentifier != nil { domIdentifierCount += 1 }
 
             nodes.append(
                 AXNodeSnapshot(
@@ -61,11 +84,18 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
                 )
             )
 
-            if depth < maxDepth, let children = children(of: element) {
-                children.forEach { queue.append(($0, depth + 1)) }
+            if depth < maxDepth {
+                if let children = children(of: element) {
+                    children.forEach { queue.append(($0, depth + 1)) }
+                }
+            } else if let children = children(of: element), !children.isEmpty {
+                maxDepthHit = true
             }
         }
 
+        logger.debug(
+            "AX snapshot summary: nodes=\(nodes.count) maxDepthVisited=\(maxDepthVisited) maxDepth=\(self.maxDepth) maxDepthHit=\(maxDepthHit) maxNodes=\(self.maxNodes) maxNodesHit=\(maxNodesHit) role=\(roleCount) roleDesc=\(roleDescriptionCount) label=\(labelCount) placeholder=\(placeholderCount) domId=\(domIdentifierCount)"
+        )
         return nodes
     }
 
