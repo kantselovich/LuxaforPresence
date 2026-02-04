@@ -2,7 +2,7 @@ import XCTest
 @testable import LuxaforPresence
 
 final class PresenceEngineTests: XCTestCase {
-    func testTick_transitionsToInMeeting_whenMeetingDetectorActive_andMicActive() {
+    func testTick_transitionsToInMeeting_whenMeetingDetectorActive_andVoiceActive() {
         var config = PresenceEngine.Config()
         config.useCalendar = false
         let mic = FakeMicCamSignal()
@@ -11,6 +11,8 @@ final class PresenceEngineTests: XCTestCase {
         let calendar = FakeCalendarSignal()
         let meetingDetector = FakeMeetingDetector()
         meetingDetector.isActive = true
+        let voiceActivity = FakeVoiceActivitySignal()
+        voiceActivity.active = true
         let lux = FakeLuxaforClient()
         let engine = PresenceEngine(
             config: config,
@@ -18,6 +20,7 @@ final class PresenceEngineTests: XCTestCase {
             frontApp: front,
             calendar: calendar,
             meetingDetector: meetingDetector,
+            voiceActivity: voiceActivity,
             luxafor: lux
         )
 
@@ -77,6 +80,7 @@ final class PresenceEngineTests: XCTestCase {
     func testTick_transitionsToInMeeting_whenCalendarActive_evenIfMeetingDetectorInactive() {
         var config = PresenceEngine.Config()
         config.useCalendar = true
+        config.vadEnabled = false
         let mic = FakeMicCamSignal()
         let front = FakeFrontmostAppSignal()
         let calendar = FakeCalendarSignal()
@@ -102,6 +106,7 @@ final class PresenceEngineTests: XCTestCase {
         var config = PresenceEngine.Config()
         config.useCalendar = false
         config.debugAssumeFrontmostImpliesMic = true
+        config.vadEnabled = false
         let mic = FakeMicCamSignal()
         let front = FakeFrontmostAppSignal()
         front.isMeetingApp = true
@@ -156,6 +161,8 @@ final class PresenceEngineTests: XCTestCase {
         let calendar = FakeCalendarSignal()
         let meetingDetector = FakeMeetingDetector()
         meetingDetector.isActive = true
+        let voiceActivity = FakeVoiceActivitySignal()
+        voiceActivity.active = true
         let lux = FakeLuxaforClient()
         let engine = PresenceEngine(
             config: config,
@@ -163,6 +170,7 @@ final class PresenceEngineTests: XCTestCase {
             frontApp: front,
             calendar: calendar,
             meetingDetector: meetingDetector,
+            voiceActivity: voiceActivity,
             luxafor: lux
         )
 
@@ -172,6 +180,120 @@ final class PresenceEngineTests: XCTestCase {
         engine.tick()
 
         XCTAssertEqual(lux.actions, [.off(config.userId), .off(config.userId)])
+    }
+
+    func testTick_meetingActiveAndVadSilentBeyondGrace_turnsYellow() {
+        var config = PresenceEngine.Config()
+        config.useCalendar = false
+        config.vadGraceSeconds = 10
+        let mic = FakeMicCamSignal()
+        let front = FakeFrontmostAppSignal()
+        let calendar = FakeCalendarSignal()
+        let meetingDetector = FakeMeetingDetector()
+        meetingDetector.isActive = true
+        let voiceActivity = FakeVoiceActivitySignal()
+        voiceActivity.active = false
+        let fixedNow = Date()
+        voiceActivity.lastActivityDate = fixedNow.addingTimeInterval(-11)
+        let lux = FakeLuxaforClient()
+        let engine = PresenceEngine(
+            config: config,
+            micCam: mic,
+            frontApp: front,
+            calendar: calendar,
+            meetingDetector: meetingDetector,
+            voiceActivity: voiceActivity,
+            luxafor: lux,
+            now: { fixedNow }
+        )
+
+        engine.tick()
+
+        XCTAssertEqual(lux.actions, [.yellow(config.userId)])
+    }
+
+    func testTick_meetingActiveAndVadActive_turnsRed() {
+        var config = PresenceEngine.Config()
+        config.useCalendar = false
+        let mic = FakeMicCamSignal()
+        let front = FakeFrontmostAppSignal()
+        let calendar = FakeCalendarSignal()
+        let meetingDetector = FakeMeetingDetector()
+        meetingDetector.isActive = true
+        let voiceActivity = FakeVoiceActivitySignal()
+        voiceActivity.active = true
+        voiceActivity.lastActivityDate = Date()
+        let lux = FakeLuxaforClient()
+        let engine = PresenceEngine(
+            config: config,
+            micCam: mic,
+            frontApp: front,
+            calendar: calendar,
+            meetingDetector: meetingDetector,
+            voiceActivity: voiceActivity,
+            luxafor: lux
+        )
+
+        engine.tick()
+
+        XCTAssertEqual(lux.actions, [.on(config.userId)])
+    }
+
+    func testTick_meetingActiveAndVadSilentWithinGrace_turnsRed() {
+        var config = PresenceEngine.Config()
+        config.useCalendar = false
+        config.vadGraceSeconds = 10
+        let mic = FakeMicCamSignal()
+        let front = FakeFrontmostAppSignal()
+        let calendar = FakeCalendarSignal()
+        let meetingDetector = FakeMeetingDetector()
+        meetingDetector.isActive = true
+        let voiceActivity = FakeVoiceActivitySignal()
+        voiceActivity.active = false
+        let fixedNow = Date()
+        voiceActivity.lastActivityDate = fixedNow.addingTimeInterval(-5)
+        let lux = FakeLuxaforClient()
+        let engine = PresenceEngine(
+            config: config,
+            micCam: mic,
+            frontApp: front,
+            calendar: calendar,
+            meetingDetector: meetingDetector,
+            voiceActivity: voiceActivity,
+            luxafor: lux,
+            now: { fixedNow }
+        )
+
+        engine.tick()
+
+        XCTAssertEqual(lux.actions, [.on(config.userId)])
+    }
+
+    func testTick_cameraActiveOverridesVadSilent_turnsRed() {
+        var config = PresenceEngine.Config()
+        config.useCalendar = false
+        let mic = FakeMicCamSignal()
+        mic.nextCamera = true
+        let front = FakeFrontmostAppSignal()
+        let calendar = FakeCalendarSignal()
+        let meetingDetector = FakeMeetingDetector()
+        meetingDetector.isActive = true
+        let voiceActivity = FakeVoiceActivitySignal()
+        voiceActivity.active = false
+        let lux = FakeLuxaforClient()
+        let engine = PresenceEngine(
+            config: config,
+            micCam: mic,
+            frontApp: front,
+            calendar: calendar,
+            meetingDetector: meetingDetector,
+            voiceActivity: voiceActivity,
+            luxafor: lux
+        )
+
+        engine.tick()
+
+        XCTAssertEqual(lux.actions, [.on(config.userId)])
     }
 }
 
@@ -207,6 +329,7 @@ private final class FakeMeetingDetector: MeetingDetectorProtocol {
 private final class FakeLuxaforClient: LuxaforClientProtocol {
     enum Action: Equatable {
         case on(String)
+        case yellow(String)
         case off(String)
     }
 
@@ -216,7 +339,19 @@ private final class FakeLuxaforClient: LuxaforClientProtocol {
         actions.append(.on(userId))
     }
 
+    func turnOnYellow(userId: String) {
+        actions.append(.yellow(userId))
+    }
+
     func turnOff(userId: String) {
         actions.append(.off(userId))
     }
+}
+
+private final class FakeVoiceActivitySignal: VoiceActivitySignalProtocol {
+    var active = false
+    var lastActivityDate: Date?
+    func requestAccessIfNeeded() {}
+    func isVoiceActive() -> Bool { active }
+    var lastVoiceActivityDate: Date? { lastActivityDate }
 }

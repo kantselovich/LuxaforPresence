@@ -28,5 +28,11 @@
         <string>Slack</string>
         <string>GoogleMeet</string>
     </array>
+    <key>vadEnabled</key>
+    <true/>
+    <key>vadThreshold</key>
+    <real>0.02</real>
+    <key>vadGraceSeconds</key>
+    <real>10</real>
 </dict>
 </plist>

@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let icon: NSImage? = {
             switch state {
             case .inMeeting: return StatusIconName.on.image()
+            case .inMeetingSilent: return StatusIconName.on.image()
             case .notMeeting: return StatusIconName.off.image()
             case .unknown: return StatusIconName.idle.image()
             }

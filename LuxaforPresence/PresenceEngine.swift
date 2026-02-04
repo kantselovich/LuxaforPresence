@@ -9,6 +9,9 @@ final class PresenceEngine {
         var useCalendar: Bool
         var debugAssumeFrontmostImpliesMic: Bool
         var enabledMeetingDetectors: Set<String>?
+        var vadEnabled: Bool
+        var vadThreshold: Double
+        var vadGraceSeconds: TimeInterval
         private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "Config")
 
         init() {
@@ -27,6 +30,9 @@ final class PresenceEngine {
             useCalendar = false
             debugAssumeFrontmostImpliesMic = false
             enabledMeetingDetectors = nil
+            vadEnabled = true
+            vadThreshold = 0.02
+            vadGraceSeconds = 10
 
             // Try to load from user's config directory first
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent("LuxaforPresence/config.plist")
@@ -54,6 +60,19 @@ final class PresenceEngine {
                 if let detectors = userConfig["enabledMeetingDetectors"] as? [String] {
                     enabledMeetingDetectors = Set(detectors)
                 }
+                if let vadFlag = userConfig["vadEnabled"] as? Bool {
+                    vadEnabled = vadFlag
+                }
+                if let threshold = userConfig["vadThreshold"] as? Double {
+                    vadThreshold = threshold
+                } else if let threshold = userConfig["vadThreshold"] as? NSNumber {
+                    vadThreshold = threshold.doubleValue
+                }
+                if let grace = userConfig["vadGraceSeconds"] as? TimeInterval {
+                    vadGraceSeconds = grace
+                } else if let grace = userConfig["vadGraceSeconds"] as? NSNumber {
+                    vadGraceSeconds = grace.doubleValue
+                }
             } else if let bundledConfigURL = Bundle.main.url(forResource: "config", withExtension: "plist"),
                       let bundledConfig = NSDictionary(contentsOf: bundledConfigURL) as? [String: Any] {
                 logger.log("Loaded config from bundled resource at \(bundledConfigURL.path, privacy: .public)")
@@ -76,6 +95,19 @@ final class PresenceEngine {
                 if let detectors = bundledConfig["enabledMeetingDetectors"] as? [String] {
                     enabledMeetingDetectors = Set(detectors)
                 }
+                if let vadFlag = bundledConfig["vadEnabled"] as? Bool {
+                    vadEnabled = vadFlag
+                }
+                if let threshold = bundledConfig["vadThreshold"] as? Double {
+                    vadThreshold = threshold
+                } else if let threshold = bundledConfig["vadThreshold"] as? NSNumber {
+                    vadThreshold = threshold.doubleValue
+                }
+                if let grace = bundledConfig["vadGraceSeconds"] as? TimeInterval {
+                    vadGraceSeconds = grace
+                } else if let grace = bundledConfig["vadGraceSeconds"] as? NSNumber {
+                    vadGraceSeconds = grace.doubleValue
+                }
             } else {
                 logger.error("No config file found; using default hard-coded values")
             }
@@ -85,7 +117,10 @@ final class PresenceEngine {
             let finalizedDebugFlag = debugAssumeFrontmostImpliesMic
             let finalizedMeetingDetectorCount = enabledMeetingDetectors?.count ?? 0
             let meetingDetectorMode = enabledMeetingDetectors == nil ? "all" : "custom"
-            logger.log("Config initialized: pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public), debugAssumeFrontmostImpliesMic \(finalizedDebugFlag), meeting detectors \(meetingDetectorMode, privacy: .public) count \(finalizedMeetingDetectorCount, privacy: .public)")
+            let finalizedVadEnabled = vadEnabled
+            let finalizedVadThreshold = vadThreshold
+            let finalizedVadGrace = vadGraceSeconds
+            logger.log("Config initialized: pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public), debugAssumeFrontmostImpliesMic \(finalizedDebugFlag), meeting detectors \(meetingDetectorMode, privacy: .public) count \(finalizedMeetingDetectorCount, privacy: .public), vadEnabled \(finalizedVadEnabled, privacy: .public), vadThreshold \(finalizedVadThreshold, privacy: .public), vadGraceSeconds \(finalizedVadGrace, privacy: .public)")
         }
     }
 
@@ -96,7 +131,9 @@ final class PresenceEngine {
     private let frontApp: FrontmostAppSignalProtocol
     private let calendar: CalendarSignalProtocol
     private let meetingDetector: MeetingDetectorProtocol
+    private let voiceActivity: VoiceActivitySignalProtocol
     private let luxafor: LuxaforClientProtocol
+    private let now: () -> Date
     private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "PresenceEngine")
     private var lastState: PresenceState = .unknown
     private var forcedState: PresenceState?
@@ -107,18 +144,27 @@ final class PresenceEngine {
         frontApp: FrontmostAppSignalProtocol = FrontmostAppSignal(),
         calendar: CalendarSignalProtocol = CalendarSignal(),
         meetingDetector: MeetingDetectorProtocol? = nil,
-        luxafor: LuxaforClientProtocol = LuxaforClient()
+        voiceActivity: VoiceActivitySignalProtocol? = nil,
+        luxafor: LuxaforClientProtocol = LuxaforClient(),
+        now: @escaping () -> Date = Date.init
     ) {
         self.config = config
         self.micCam = micCam
         self.frontApp = frontApp
         self.calendar = calendar
         self.meetingDetector = meetingDetector ?? MeetingDetector(enabledNames: config.enabledMeetingDetectors)
+        self.voiceActivity = voiceActivity ?? VoiceActivitySignal(threshold: config.vadThreshold)
         self.luxafor = luxafor
+        self.now = now
     }
 
     func prepare() {
         micCam.requestAccessIfNeeded()
+        if config.vadEnabled {
+            voiceActivity.requestAccessIfNeeded()
+        } else {
+            logger.debug("VAD disabled in config; skipping audio access request")
+        }
 
         guard config.useCalendar else {
             logger.debug("Calendar disabled in config; skipping access request")
@@ -159,12 +205,40 @@ final class PresenceEngine {
         let meetingActive = detectorMeetingActive || calendarMeetingActive || debugForcingMeeting
         let cameraActive = micCam.isCameraInUse()
         let micActive = micCam.isMicrophoneInUse()
+        let voiceActive = config.vadEnabled ? voiceActivity.isVoiceActive() : false
+        let lastVoiceActivityDate = config.vadEnabled ? voiceActivity.lastVoiceActivityDate : nil
+        let now = now()
+        let secondsSinceVoiceActivity = lastVoiceActivityDate.map { now.timeIntervalSince($0) }
+        let withinGrace = config.vadEnabled ? (secondsSinceVoiceActivity.map { $0 <= config.vadGraceSeconds } ?? false) : false
 
-        let newState: PresenceState = (meetingActive || cameraActive) ? .inMeeting : .notMeeting
+        let newState: PresenceState
+        let decisionPath: String
+        if cameraActive {
+            newState = .inMeeting
+            decisionPath = "cameraActive"
+        } else if meetingActive {
+            if !config.vadEnabled {
+                newState = .inMeeting
+                decisionPath = "meeting+vadDisabled"
+            } else if voiceActive {
+                newState = .inMeeting
+                decisionPath = "meeting+voiceActive"
+            } else if withinGrace {
+                newState = .inMeeting
+                decisionPath = "meeting+vadGrace"
+            } else {
+                newState = .inMeetingSilent
+                decisionPath = "meeting+vadSilent"
+            }
+        } else {
+            newState = .notMeeting
+            decisionPath = "noMeeting"
+        }
 
         logger.debug(
-            "Signals -> meeting detector: \(detectorMeetingActive), calendar: \(calendarMeetingActive), debug frontmost: \(debugForcingMeeting), camera: \(cameraActive), mic: \(micActive)"
+            "Signals -> meeting detector: \(detectorMeetingActive), calendar: \(calendarMeetingActive), debug frontmost: \(debugForcingMeeting), camera: \(cameraActive), mic: \(micActive), vadEnabled: \(self.config.vadEnabled), voiceActive: \(voiceActive), secondsSinceVoiceActivity: \(String(describing: secondsSinceVoiceActivity))"
         )
+        logger.debug("Decision path: \(decisionPath, privacy: .public)")
         logger.log("Proposed state \(newState.rawValue, privacy: .public) (previous \(self.lastState.rawValue, privacy: .public))")
 
         if newState != lastState {
@@ -180,6 +254,7 @@ final class PresenceEngine {
         logger.log("Applying state \(state.rawValue, privacy: .public)")
         switch state {
         case .inMeeting:  luxafor.turnOnRed(userId: config.userId)
+        case .inMeetingSilent: luxafor.turnOnYellow(userId: config.userId)
         case .notMeeting: luxafor.turnOff(userId: config.userId)
         case .unknown: break
         }
