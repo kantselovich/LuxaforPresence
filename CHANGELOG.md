@@ -6,6 +6,7 @@ All notable changes to LuxaforPresence will be documented here. This project is 
 
 - Current app version is `1.5.0` (from `CFBundleShortVersionString`).
 - “in meeting” state is detected using camera/mic activity, voice activity, plus checks for common meeting apps like Slack and Teams showing UI elements that indicate an active meeting.
+- build on MacOS 15 
 
 ## [v0.01] – First Tagged Version (check via `git ls-remote --tags origin`)
 
