@@ -39,6 +39,12 @@ jobs:
       - name: Set build env
         run: echo "CLANG_MODULE_CACHE_PATH=$RUNNER_TEMP/clang-module-cache" >> "$GITHUB_ENV"
 
+      - name: Show SDK and toolchain
+        run: |
+          xcrun --sdk macosx --show-sdk-path
+          xcrun --sdk macosx --show-sdk-version
+          swift --version
+
       - name: Build release binary
         run: swift build $SWIFT_BUILD_FLAGS
         env:
