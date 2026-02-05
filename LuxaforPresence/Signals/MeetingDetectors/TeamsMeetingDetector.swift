@@ -28,6 +28,20 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
         "Calling controls",
         "Meeting controls",
     ]
+    private let meetingControlLabels: Set<String> = [
+        "Raise",
+        "Raise your hand",
+        "Camera",
+        "Mic",
+        "Share",
+        "Share content",
+        "Leave",
+        "Unmute mic",
+        "Mute mic",
+        "Turn camera on",
+        "Turn camera off",
+    ]
+    private let meetingControlLabelThreshold = 2
 
     var name: String { "Teams" }
 
@@ -56,6 +70,7 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
         var matchedDomIdentifiers = Set<String>()
         var matchedIdentifiers = Set<String>()
         var matchedToolbarLabels = Set<String>()
+        var matchedMeetingControlLabels = Set<String>()
         var roleCount = 0
         var labelCount = 0
         var domIdentifierCount = 0
@@ -76,13 +91,18 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
             if let role = node.role, role == "AXToolbar" {
                 toolbarRoleCount += 1
             }
-            if let label = node.label, toolbarLabels.contains(label) {
-                matchedToolbarLabels.insert(label)
+            if let label = node.label {
+                if toolbarLabels.contains(label) {
+                    matchedToolbarLabels.insert(label)
+                }
+                if let role = node.role, role == "AXButton", meetingControlLabels.contains(label) {
+                    matchedMeetingControlLabels.insert(label)
+                }
             }
         }
 
         logger.debug(
-            "Teams AX snapshot: nodes=\(nodes.count) role=\(roleCount) label=\(labelCount) domId=\(domIdentifierCount) identifier=\(identifierCount) toolbarRole=\(toolbarRoleCount) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) identifierMatches=\(matchedIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public)"
+            "Teams AX snapshot: nodes=\(nodes.count) role=\(roleCount) label=\(labelCount) domId=\(domIdentifierCount) identifier=\(identifierCount) toolbarRole=\(toolbarRoleCount) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) identifierMatches=\(matchedIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public) meetingControlMatches=\(matchedMeetingControlLabels.sorted(), privacy: .public)"
         )
 
         if !matchedDomIdentifiers.isEmpty || !matchedIdentifiers.isEmpty {
@@ -92,6 +112,13 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
 
         if !matchedToolbarLabels.isEmpty {
             logger.debug("Teams meeting detected via toolbar label fallback")
+            return true
+        }
+
+        if matchedMeetingControlLabels.count >= meetingControlLabelThreshold {
+            logger.debug(
+                "Teams meeting detected via meeting control labels (matched=\(matchedMeetingControlLabels.sorted(), privacy: .public), threshold=\(self.meetingControlLabelThreshold))"
+            )
             return true
         }
 
