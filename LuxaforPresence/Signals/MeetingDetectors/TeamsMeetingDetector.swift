@@ -5,8 +5,19 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
     private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "TeamsMeetingDetector")
     private let snapshotProvider: AXSnapshotProviding
     private let isProcessRunning: ([String]) -> Bool
-    private let processNames = ["Microsoft Teams", "Teams"]
-    private let bundleIdentifiers = ["com.microsoft.teams2", "com.microsoft.teams"]
+    private let processNames = [
+        "Microsoft Teams",
+        "Teams",
+        "Microsoft Teams WebView Helper",
+        "Microsoft Teams WebView Helper (Renderer)",
+        "Microsoft Teams WebView Helper (GPU)",
+        "Microsoft Teams WebView Helper (Plugin)",
+    ]
+    private let bundleIdentifiers = [
+        "com.microsoft.teams2",
+        "com.microsoft.teams",
+        "com.microsoft.teams2.helper",
+    ]
     private let domIdentifiers: Set<String> = [
         "microphone-button",
         "video-button",
@@ -43,18 +54,24 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
         }
 
         var matchedDomIdentifiers = Set<String>()
+        var matchedIdentifiers = Set<String>()
         var matchedToolbarLabels = Set<String>()
         var roleCount = 0
         var labelCount = 0
         var domIdentifierCount = 0
+        var identifierCount = 0
         var toolbarRoleCount = 0
 
         for node in nodes {
             if node.role != nil { roleCount += 1 }
             if node.label != nil { labelCount += 1 }
             if node.domIdentifier != nil { domIdentifierCount += 1 }
+            if node.identifier != nil { identifierCount += 1 }
             if let domIdentifier = node.domIdentifier, domIdentifiers.contains(domIdentifier) {
                 matchedDomIdentifiers.insert(domIdentifier)
+            }
+            if let identifier = node.identifier, domIdentifiers.contains(identifier) {
+                matchedIdentifiers.insert(identifier)
             }
             if let role = node.role, role == "AXToolbar" {
                 toolbarRoleCount += 1
@@ -65,11 +82,11 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
         }
 
         logger.debug(
-            "Teams AX snapshot: nodes=\(nodes.count) role=\(roleCount) label=\(labelCount) domId=\(domIdentifierCount) toolbarRole=\(toolbarRoleCount) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public)"
+            "Teams AX snapshot: nodes=\(nodes.count) role=\(roleCount) label=\(labelCount) domId=\(domIdentifierCount) identifier=\(identifierCount) toolbarRole=\(toolbarRoleCount) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) identifierMatches=\(matchedIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public)"
         )
 
-        if !matchedDomIdentifiers.isEmpty {
-            logger.debug("Teams meeting detected via DOM identifiers")
+        if !matchedDomIdentifiers.isEmpty || !matchedIdentifiers.isEmpty {
+            logger.debug("Teams meeting detected via identifiers")
             return true
         }
 

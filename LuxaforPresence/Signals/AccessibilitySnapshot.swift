@@ -9,6 +9,7 @@ struct AXNodeSnapshot: Equatable {
     let label: String?
     let placeholder: String?
     let domIdentifier: String?
+    let identifier: String?
 }
 
 protocol AXSnapshotProviding {
@@ -30,12 +31,29 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
             logger.info("AX snapshot unavailable: not trusted")
             return nil
         }
-        guard let app = runningApplication(bundleIdentifiers: bundleIdentifiers, processNames: processNames) else {
+        let apps = runningApplications(bundleIdentifiers: bundleIdentifiers, processNames: processNames)
+        guard !apps.isEmpty else {
             logger.debug("AX snapshot: no running app for bundles=\(bundleIdentifiers, privacy: .public) names=\(processNames, privacy: .public)")
             return []
         }
+        if apps.count > 1 {
+            logger.debug(
+                "AX snapshot: found \(apps.count, privacy: .public) matching apps \(self.formatApps(apps), privacy: .public)"
+            )
+        }
+
+        var allNodes: [AXNodeSnapshot] = []
+        for app in apps {
+            allNodes.append(contentsOf: snapshotNodes(for: app))
+        }
+        return allNodes
+    }
+
+    private func snapshotNodes(for app: NSRunningApplication) -> [AXNodeSnapshot] {
+        let isFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier
+        let hasFocusedWindow = self.hasFocusedWindow(app)
         logger.debug(
-            "AX snapshot: app bundle=\(app.bundleIdentifier ?? "unknown", privacy: .public) name=\(app.localizedName ?? "unknown", privacy: .public) pid=\(app.processIdentifier, privacy: .public)"
+            "AX snapshot: app bundle=\(app.bundleIdentifier ?? "unknown", privacy: .public) name=\(app.localizedName ?? "unknown", privacy: .public) pid=\(app.processIdentifier, privacy: .public) frontmost=\(isFrontmost) focusedWindow=\(hasFocusedWindow)"
         )
 
         let root = AXUIElementCreateApplication(app.processIdentifier)
@@ -51,6 +69,7 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
         var labelCount = 0
         var placeholderCount = 0
         var domIdentifierCount = 0
+        var identifierCount = 0
         var attributeErrorCounts: [String: Int] = [:]
         var attributeEmptyCounts: [String: Int] = [:]
         var attributeNonStringCounts: [String: Int] = [:]
@@ -119,11 +138,19 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
                 emptyCounts: &attributeEmptyCounts,
                 nonStringCounts: &attributeNonStringCounts
             )
+            let identifier = stringAttribute(
+                element,
+                kAXIdentifierAttribute,
+                errorCounts: &attributeErrorCounts,
+                emptyCounts: &attributeEmptyCounts,
+                nonStringCounts: &attributeNonStringCounts
+            )
             if role != nil { roleCount += 1 }
             if roleDescription != nil { roleDescriptionCount += 1 }
             if label != nil { labelCount += 1 }
             if placeholder != nil { placeholderCount += 1 }
             if domIdentifier != nil { domIdentifierCount += 1 }
+            if identifier != nil { identifierCount += 1 }
 
             nodes.append(
                 AXNodeSnapshot(
@@ -131,7 +158,8 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
                     roleDescription: roleDescription,
                     label: label,
                     placeholder: placeholder,
-                    domIdentifier: domIdentifier
+                    domIdentifier: domIdentifier,
+                    identifier: identifier
                 )
             )
 
@@ -162,7 +190,7 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
         }
 
         logger.debug(
-            "AX snapshot summary: nodes=\(nodes.count) dequeued=\(dequeuedCount) appended=\(appendedCount) maxDepthVisited=\(maxDepthVisited) maxDepth=\(self.maxDepth) maxDepthHit=\(maxDepthHit) maxNodes=\(self.maxNodes) maxNodesHit=\(maxNodesHit) role=\(roleCount) roleDesc=\(roleDescriptionCount) label=\(labelCount) placeholder=\(placeholderCount) domId=\(domIdentifierCount)"
+            "AX snapshot summary: nodes=\(nodes.count) dequeued=\(dequeuedCount) appended=\(appendedCount) maxDepthVisited=\(maxDepthVisited) maxDepth=\(self.maxDepth) maxDepthHit=\(maxDepthHit) maxNodes=\(self.maxNodes) maxNodesHit=\(maxNodesHit) role=\(roleCount) roleDesc=\(roleDescriptionCount) label=\(labelCount) placeholder=\(placeholderCount) domId=\(domIdentifierCount) identifier=\(identifierCount)"
         )
         logger.debug(
             "AX snapshot attributes: errors=\(self.formatCounts(attributeErrorCounts), privacy: .public) empty=\(self.formatCounts(attributeEmptyCounts), privacy: .public) nonString=\(self.formatCounts(attributeNonStringCounts), privacy: .public)"
@@ -173,10 +201,10 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
         return nodes
     }
 
-    private func runningApplication(bundleIdentifiers: [String], processNames: [String]) -> NSRunningApplication? {
+    private func runningApplications(bundleIdentifiers: [String], processNames: [String]) -> [NSRunningApplication] {
         let normalizedBundles = Set(bundleIdentifiers.map { $0.lowercased() })
         let normalizedNames = Set(processNames.map { $0.lowercased() })
-        return NSWorkspace.shared.runningApplications.first { app in
+        return NSWorkspace.shared.runningApplications.filter { app in
             if let bundle = app.bundleIdentifier?.lowercased(), normalizedBundles.contains(bundle) {
                 return true
             }
@@ -188,6 +216,23 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
             }
             return false
         }
+    }
+
+    private func formatApps(_ apps: [NSRunningApplication]) -> String {
+        apps.map { app in
+            let bundle = app.bundleIdentifier ?? "unknown"
+            let name = app.localizedName ?? "unknown"
+            let pid = app.processIdentifier
+            return "\(name) [\(bundle)] pid=\(pid)"
+        }
+        .joined(separator: "; ")
+    }
+
+    private func hasFocusedWindow(_ app: NSRunningApplication) -> Bool {
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        var value: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(root, kAXFocusedWindowAttribute as CFString, &value)
+        return error == .success && value != nil
     }
 
     private func stringAttribute(

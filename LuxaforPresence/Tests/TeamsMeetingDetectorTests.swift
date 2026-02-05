@@ -10,7 +10,8 @@ final class TeamsMeetingDetectorTests: XCTestCase {
                 roleDescription: "button",
                 label: "Unmute mic",
                 placeholder: nil,
-                domIdentifier: "microphone-button"
+                domIdentifier: "microphone-button",
+                identifier: nil
             ),
         ]
         let detector = TeamsMeetingDetector(snapshotProvider: provider, isProcessRunning: { _ in true })
@@ -26,7 +27,8 @@ final class TeamsMeetingDetectorTests: XCTestCase {
                 roleDescription: "toolbar",
                 label: "Calling controls",
                 placeholder: nil,
-                domIdentifier: nil
+                domIdentifier: nil,
+                identifier: nil
             ),
         ]
         let detector = TeamsMeetingDetector(snapshotProvider: provider, isProcessRunning: { _ in true })
@@ -42,7 +44,8 @@ final class TeamsMeetingDetectorTests: XCTestCase {
                 roleDescription: "button",
                 label: "Random button",
                 placeholder: nil,
-                domIdentifier: "something-else"
+                domIdentifier: "something-else",
+                identifier: nil
             ),
         ]
         let detector = TeamsMeetingDetector(snapshotProvider: provider, isProcessRunning: { _ in false })
