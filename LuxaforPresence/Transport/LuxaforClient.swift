@@ -2,6 +2,7 @@ import Foundation
 
 protocol LuxaforClientProtocol {
     func turnOnRed(userId: String)
+    func turnOnYellow(userId: String)
     func turnOff(userId: String)
 }
 
@@ -11,6 +12,10 @@ final class LuxaforClient: LuxaforClientProtocol {
 
     func turnOnRed(userId: String) {
         post(["userId": userId, "actionFields": ["color": "red"]])
+    }
+
+    func turnOnYellow(userId: String) {
+        post(["userId": userId, "actionFields": ["color": "yellow"]])
     }
 
     func turnOff(userId: String) {
@@ -23,7 +28,7 @@ final class LuxaforClient: LuxaforClientProtocol {
         req.addValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         let task = session.dataTask(with: req) { data, resp, err in
-            // Optional: log errors, backoff, retry on 5xx
+            // TODO: log errors, Optional: backoff, retry on 5xx
         }
         task.resume()
     }
