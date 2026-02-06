@@ -60,6 +60,7 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
             return false
         }
         guard let nodes = snapshotProvider.snapshot(bundleIdentifiers: bundleIdentifiers, processNames: processNames) else {
+            AccessibilityTrustDiagnostics.logNotTrusted(logger: logger, context: "teams snapshot")
             logger.debug("AX snapshot unavailable (not authorized or failed)")
             return false
         }
@@ -76,6 +77,7 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
         var domIdentifierCount = 0
         var identifierCount = 0
         var toolbarRoleCount = 0
+        let pids = Set(nodes.compactMap { $0.pid }).sorted()
 
         for node in nodes {
             if node.role != nil { roleCount += 1 }
@@ -102,7 +104,7 @@ final class TeamsMeetingDetector: MeetingDetectorProtocol {
         }
 
         logger.debug(
-            "Teams AX snapshot: nodes=\(nodes.count) role=\(roleCount) label=\(labelCount) domId=\(domIdentifierCount) identifier=\(identifierCount) toolbarRole=\(toolbarRoleCount) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) identifierMatches=\(matchedIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public) meetingControlMatches=\(matchedMeetingControlLabels.sorted(), privacy: .public)"
+            "Teams AX snapshot: nodes=\(nodes.count) pids=\(pids, privacy: .public) role=\(roleCount) label=\(labelCount) domId=\(domIdentifierCount) identifier=\(identifierCount) toolbarRole=\(toolbarRoleCount) domMatches=\(matchedDomIdentifiers.sorted(), privacy: .public) identifierMatches=\(matchedIdentifiers.sorted(), privacy: .public) toolbarMatches=\(matchedToolbarLabels.sorted(), privacy: .public) meetingControlMatches=\(matchedMeetingControlLabels.sorted(), privacy: .public)"
         )
 
         if !matchedDomIdentifiers.isEmpty || !matchedIdentifiers.isEmpty {

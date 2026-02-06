@@ -10,6 +10,7 @@ struct AXNodeSnapshot: Equatable {
     let placeholder: String?
     let domIdentifier: String?
     let identifier: String?
+    let pid: Int32?
 }
 
 protocol AXSnapshotProviding {
@@ -28,6 +29,7 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
 
     func snapshot(bundleIdentifiers: [String], processNames: [String]) -> [AXNodeSnapshot]? {
         guard AXIsProcessTrusted() else {
+            AccessibilityTrustDiagnostics.logNotTrusted(logger: logger, context: "snapshot")
             logger.info("AX snapshot unavailable: not trusted")
             return nil
         }
@@ -52,8 +54,9 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
     private func snapshotNodes(for app: NSRunningApplication) -> [AXNodeSnapshot] {
         let isFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier
         let hasFocusedWindow = self.hasFocusedWindow(app)
+        let pid = app.processIdentifier
         logger.debug(
-            "AX snapshot: app bundle=\(app.bundleIdentifier ?? "unknown", privacy: .public) name=\(app.localizedName ?? "unknown", privacy: .public) pid=\(app.processIdentifier, privacy: .public) frontmost=\(isFrontmost) focusedWindow=\(hasFocusedWindow)"
+            "AX snapshot: app bundle=\(app.bundleIdentifier ?? "unknown", privacy: .public) name=\(app.localizedName ?? "unknown", privacy: .public) pid=\(pid, privacy: .public) frontmost=\(isFrontmost) focusedWindow=\(hasFocusedWindow)"
         )
 
         let root = AXUIElementCreateApplication(app.processIdentifier)
@@ -159,7 +162,8 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
                     label: label,
                     placeholder: placeholder,
                     domIdentifier: domIdentifier,
-                    identifier: identifier
+                    identifier: identifier,
+                    pid: pid
                 )
             )
 
@@ -190,13 +194,13 @@ final class AccessibilitySnapshotProvider: AXSnapshotProviding {
         }
 
         logger.debug(
-            "AX snapshot summary: nodes=\(nodes.count) dequeued=\(dequeuedCount) appended=\(appendedCount) maxDepthVisited=\(maxDepthVisited) maxDepth=\(self.maxDepth) maxDepthHit=\(maxDepthHit) maxNodes=\(self.maxNodes) maxNodesHit=\(maxNodesHit) role=\(roleCount) roleDesc=\(roleDescriptionCount) label=\(labelCount) placeholder=\(placeholderCount) domId=\(domIdentifierCount) identifier=\(identifierCount)"
+            "AX snapshot summary: pid=\(pid, privacy: .public) nodes=\(nodes.count) dequeued=\(dequeuedCount) appended=\(appendedCount) maxDepthVisited=\(maxDepthVisited) maxDepth=\(self.maxDepth) maxDepthHit=\(maxDepthHit) maxNodes=\(self.maxNodes) maxNodesHit=\(maxNodesHit) role=\(roleCount) roleDesc=\(roleDescriptionCount) label=\(labelCount) placeholder=\(placeholderCount) domId=\(domIdentifierCount) identifier=\(identifierCount)"
         )
         logger.debug(
-            "AX snapshot attributes: errors=\(self.formatCounts(attributeErrorCounts), privacy: .public) empty=\(self.formatCounts(attributeEmptyCounts), privacy: .public) nonString=\(self.formatCounts(attributeNonStringCounts), privacy: .public)"
+            "AX snapshot attributes: pid=\(pid, privacy: .public) errors=\(self.formatCounts(attributeErrorCounts), privacy: .public) empty=\(self.formatCounts(attributeEmptyCounts), privacy: .public) nonString=\(self.formatCounts(attributeNonStringCounts), privacy: .public)"
         )
         logger.debug(
-            "AX snapshot children: zero=\(childBucketZero) small=\(childBucketSmall) medium=\(childBucketMedium) large=\(childBucketLarge) fetchErrors=\(childrenFetchErrorCount) nonArray=\(childrenNonArrayCount)"
+            "AX snapshot children: pid=\(pid, privacy: .public) zero=\(childBucketZero) small=\(childBucketSmall) medium=\(childBucketMedium) large=\(childBucketLarge) fetchErrors=\(childrenFetchErrorCount) nonArray=\(childrenNonArrayCount)"
         )
         return nodes
     }

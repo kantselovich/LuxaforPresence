@@ -11,7 +11,8 @@ final class SlackMeetingDetectorTests: XCTestCase {
                 label: "Huddle: test",
                 placeholder: nil,
                 domIdentifier: nil,
-                identifier: nil
+                identifier: nil,
+                pid: nil
             ),
             AXNodeSnapshot(
                 role: "AXCheckBox",
@@ -19,7 +20,8 @@ final class SlackMeetingDetectorTests: XCTestCase {
                 label: "Share your screen",
                 placeholder: nil,
                 domIdentifier: nil,
-                identifier: nil
+                identifier: nil,
+                pid: nil
             ),
         ]
         let detector = SlackMeetingDetector(snapshotProvider: provider, isProcessRunning: { _ in true })
@@ -44,7 +46,8 @@ final class SlackMeetingDetectorTests: XCTestCase {
                 label: "Share your screen",
                 placeholder: nil,
                 domIdentifier: nil,
-                identifier: nil
+                identifier: nil,
+                pid: nil
             ),
         ]
         let detector = SlackMeetingDetector(snapshotProvider: provider, isProcessRunning: { _ in true })

@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine = PresenceEngine()
     private let logger = Logger(subsystem: "com.example.LuxaforPresence", category: "AppDelegate")
     private let accessibilityPromptShownKey = "AccessibilityPromptShown"
+    private let accessibilityPromptedExecutablePathKey = "AccessibilityPromptedExecutablePath"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.log("Application did finish launching")
@@ -55,19 +56,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func promptForAccessibilityIfNeeded() {
         guard !AXIsProcessTrusted() else { return }
-        guard !UserDefaults.standard.bool(forKey: accessibilityPromptShownKey) else { return }
+        AccessibilityTrustDiagnostics.logNotTrusted(logger: logger, context: "startup")
+
+        let executablePath = AccessibilityTrustDiagnostics.currentExecutablePath()
+        let lastPromptedPath = UserDefaults.standard.string(forKey: accessibilityPromptedExecutablePathKey)
+        if UserDefaults.standard.bool(forKey: accessibilityPromptShownKey), lastPromptedPath == executablePath {
+            AccessibilityTrustDiagnostics.logNotTrusted(logger: logger, context: "prompt suppressed; already shown for this executable")
+            return
+        }
 
         let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
         UserDefaults.standard.set(true, forKey: accessibilityPromptShownKey)
+        UserDefaults.standard.set(executablePath, forKey: accessibilityPromptedExecutablePathKey)
 
         let alert = NSAlert()
         alert.messageText = "Enable Accessibility Access"
-        alert.informativeText = "LuxaforPresence needs Accessibility access to read meeting UI controls. Open System Settings → Privacy & Security → Accessibility, then enable LuxaforPresence (or Terminal/Xcode if running from there)."
+        let appPath = AccessibilityTrustDiagnostics.currentBundlePath()
+        alert.informativeText = """
+LuxaforPresence needs Accessibility access to read meeting UI controls.
+
+Running app path:
+\(appPath)
+
+Open System Settings → Privacy & Security → Accessibility, then enable this app.
+"""
         alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "OK")
-        alert.runModal()
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            self.openAccessibilitySettings()
+        }
         logger.info("Prompted for Accessibility access")
+    }
+
+    private func openAccessibilitySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else {
+            logger.error("Failed to build Accessibility settings URL")
+            return
+        }
+        NSWorkspace.shared.open(url)
+        logger.info("Opened Accessibility settings")
     }
 
     @objc private func forceOn()  { engine.force(.inMeeting) }

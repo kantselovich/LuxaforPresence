@@ -37,6 +37,7 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
             return false
         }
         guard let nodes = snapshotProvider.snapshot(bundleIdentifiers: bundleIdentifiers, processNames: processNames) else {
+            AccessibilityTrustDiagnostics.logNotTrusted(logger: logger, context: "slack snapshot")
             logger.debug("AX snapshot unavailable (not authorized or failed)")
             return false
         }
@@ -50,8 +51,9 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
             }
             return false
         }
+        let pids = Set(nodes.compactMap { $0.pid }).sorted()
         if !anchorFound {
-            logger.debug("Slack AX snapshot: nodes=\(nodes.count) anchorFound=false")
+            logger.debug("Slack AX snapshot: nodes=\(nodes.count) pids=\(pids, privacy: .public) anchorFound=false")
             return false
         }
 
@@ -64,7 +66,9 @@ final class SlackMeetingDetector: MeetingDetectorProtocol {
                 matchedControls.insert(normalizedLabel)
             }
         }
-        logger.debug("Slack AX snapshot: nodes=\(nodes.count) anchorFound=true matchedControls=\(matchedControls.sorted(), privacy: .public)")
+        logger.debug(
+            "Slack AX snapshot: nodes=\(nodes.count) pids=\(pids, privacy: .public) anchorFound=true matchedControls=\(matchedControls.sorted(), privacy: .public)"
+        )
 
         if matchedControls.isEmpty {
             logger.debug("Slack huddle detected via anchor (no control matches)")
