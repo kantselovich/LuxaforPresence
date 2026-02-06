@@ -3,7 +3,10 @@ import OSLog
 
 final class PresenceEngine {
     struct Config {
-        var userId: String
+        var transportMode: TransportMode
+        var localWebhookBaseUrl: String
+        var localWebhookToken: String
+        var remoteWebhookUserId: String
         var pollInterval: TimeInterval
         var meetingBundles: Set<String>
         var useCalendar: Bool
@@ -16,7 +19,10 @@ final class PresenceEngine {
 
         init() {
             // Default values
-            userId = "YOUR_USER_ID_HERE" // Fallback default
+            transportMode = .local
+            localWebhookBaseUrl = "http://127.0.0.1:5383"
+            localWebhookToken = "luxafor"
+            remoteWebhookUserId = "YOUR_USER_ID_HERE" // Fallback default
             pollInterval = 2.0
             meetingBundles = [
                 "us.zoom.xos",
@@ -42,8 +48,20 @@ final class PresenceEngine {
             if let userConfigURL = candidateURLs.first(where: { FileManager.default.fileExists(atPath: $0.path) }),
                let userConfig = NSDictionary(contentsOf: userConfigURL) as? [String: Any] {
                 logger.log("Loaded config from user path at \(userConfigURL.path(percentEncoded: false), privacy: .public)")
-                if let id = userConfig["userId"] as? String {
-                    userId = id
+                if let mode = userConfig["transportMode"] as? String,
+                   let parsed = TransportMode(rawValue: mode.lowercased()) {
+                    transportMode = parsed
+                }
+                if let baseUrl = userConfig["localWebhookBaseUrl"] as? String {
+                    localWebhookBaseUrl = baseUrl
+                }
+                if let token = userConfig["localWebhookToken"] as? String {
+                    localWebhookToken = token
+                }
+                if let id = userConfig["remoteWebhookUserId"] as? String {
+                    remoteWebhookUserId = id
+                } else if let legacyId = userConfig["userId"] as? String {
+                    remoteWebhookUserId = legacyId
                 }
                 if let interval = userConfig["pollInterval"] as? TimeInterval {
                     pollInterval = interval
@@ -77,8 +95,20 @@ final class PresenceEngine {
                       let bundledConfig = NSDictionary(contentsOf: bundledConfigURL) as? [String: Any] {
                 logger.log("Loaded config from bundled resource at \(bundledConfigURL.path, privacy: .public)")
                 // Fallback to bundled config
-                if let id = bundledConfig["userId"] as? String {
-                    userId = id
+                if let mode = bundledConfig["transportMode"] as? String,
+                   let parsed = TransportMode(rawValue: mode.lowercased()) {
+                    transportMode = parsed
+                }
+                if let baseUrl = bundledConfig["localWebhookBaseUrl"] as? String {
+                    localWebhookBaseUrl = baseUrl
+                }
+                if let token = bundledConfig["localWebhookToken"] as? String {
+                    localWebhookToken = token
+                }
+                if let id = bundledConfig["remoteWebhookUserId"] as? String {
+                    remoteWebhookUserId = id
+                } else if let legacyId = bundledConfig["userId"] as? String {
+                    remoteWebhookUserId = legacyId
                 }
                 if let interval = bundledConfig["pollInterval"] as? TimeInterval {
                     pollInterval = interval
@@ -111,6 +141,7 @@ final class PresenceEngine {
             } else {
                 logger.error("No config file found; using default hard-coded values")
             }
+            let finalizedTransportMode = transportMode
             let finalizedPollInterval = pollInterval
             let finalizedBundleCount = meetingBundles.count
             let finalizedUseCalendar = useCalendar
@@ -120,7 +151,16 @@ final class PresenceEngine {
             let finalizedVadEnabled = vadEnabled
             let finalizedVadThreshold = vadThreshold
             let finalizedVadGrace = vadGraceSeconds
-            logger.log("Config initialized: pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public), debugAssumeFrontmostImpliesMic \(finalizedDebugFlag), meeting detectors \(meetingDetectorMode, privacy: .public) count \(finalizedMeetingDetectorCount, privacy: .public), vadEnabled \(finalizedVadEnabled, privacy: .public), vadThreshold \(finalizedVadThreshold, privacy: .public), vadGraceSeconds \(finalizedVadGrace, privacy: .public)")
+            logger.log("Config initialized: transport \(finalizedTransportMode.rawValue, privacy: .public), pollInterval \(finalizedPollInterval, privacy: .public)s, meeting bundles count \(finalizedBundleCount, privacy: .public), useCalendar \(finalizedUseCalendar, privacy: .public), debugAssumeFrontmostImpliesMic \(finalizedDebugFlag), meeting detectors \(meetingDetectorMode, privacy: .public) count \(finalizedMeetingDetectorCount, privacy: .public), vadEnabled \(finalizedVadEnabled, privacy: .public), vadThreshold \(finalizedVadThreshold, privacy: .public), vadGraceSeconds \(finalizedVadGrace, privacy: .public)")
+        }
+
+        func makeLuxaforClient() -> LuxaforClientProtocol {
+            switch transportMode {
+            case .local:
+                return LuxaforLocalWebhookClient(baseURL: localWebhookBaseUrl, token: localWebhookToken)
+            case .remote:
+                return LuxaforClient()
+            }
         }
     }
 
@@ -145,7 +185,7 @@ final class PresenceEngine {
         calendar: CalendarSignalProtocol = CalendarSignal(),
         meetingDetector: MeetingDetectorProtocol? = nil,
         voiceActivity: VoiceActivitySignalProtocol? = nil,
-        luxafor: LuxaforClientProtocol = LuxaforClient(),
+        luxafor: LuxaforClientProtocol? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.config = config
@@ -154,7 +194,7 @@ final class PresenceEngine {
         self.calendar = calendar
         self.meetingDetector = meetingDetector ?? MeetingDetector(enabledNames: config.enabledMeetingDetectors)
         self.voiceActivity = voiceActivity ?? VoiceActivitySignal(threshold: config.vadThreshold)
-        self.luxafor = luxafor
+        self.luxafor = luxafor ?? config.makeLuxaforClient()
         self.now = now
     }
 
@@ -253,9 +293,9 @@ final class PresenceEngine {
         onStateChange?(state)
         logger.log("Applying state \(state.rawValue, privacy: .public)")
         switch state {
-        case .inMeeting:  luxafor.turnOnRed(userId: config.userId)
-        case .inMeetingSilent: luxafor.turnOnYellow(userId: config.userId)
-        case .notMeeting: luxafor.turnOff(userId: config.userId)
+        case .inMeeting:  luxafor.turnOnRed(userId: config.remoteWebhookUserId)
+        case .inMeetingSilent: luxafor.turnOnYellow(userId: config.remoteWebhookUserId)
+        case .notMeeting: luxafor.turnOff(userId: config.remoteWebhookUserId)
         case .unknown: break
         }
     }

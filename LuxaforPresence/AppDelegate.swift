@@ -102,6 +102,6 @@ Open System Settings → Privacy & Security → Accessibility, then enable this 
 
     @objc private func forceOn()  { engine.force(.inMeeting) }
     @objc private func forceOff() { engine.force(.notMeeting) }
-    @objc private func openPrefs() { /* simple NSAlert or NSPanel for userId etc. */ }
+    @objc private func openPrefs() { /* simple NSAlert or NSPanel for remoteWebhookUserId etc. */ }
     @objc private func quit() { NSApp.terminate(nil) }
 }

@@ -26,7 +26,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.on(config.userId)])
+        XCTAssertEqual(lux.actions, [.on(config.remoteWebhookUserId)])
     }
 
     func testTick_staysNotMeeting_whenMeetingDetectorInactive_evenIfMicActive() {
@@ -50,7 +50,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.off(config.userId)])
+        XCTAssertEqual(lux.actions, [.off(config.remoteWebhookUserId)])
     }
 
     func testTick_transitionsToInMeeting_whenCameraActive_evenIfMeetingDetectorInactive() {
@@ -74,7 +74,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.on(config.userId)])
+        XCTAssertEqual(lux.actions, [.on(config.remoteWebhookUserId)])
     }
 
     func testTick_transitionsToInMeeting_whenCalendarActive_evenIfMeetingDetectorInactive() {
@@ -99,7 +99,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.on(config.userId)])
+        XCTAssertEqual(lux.actions, [.on(config.remoteWebhookUserId)])
     }
 
     func testTick_usesDebugFlagToAssumeMeetingWhenFrontmostAllowlisted() {
@@ -125,7 +125,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.on(config.userId)])
+        XCTAssertEqual(lux.actions, [.on(config.remoteWebhookUserId)])
     }
 
     func testTick_frontmostAloneDoesNotTriggerMeetingWithoutDebug() {
@@ -149,11 +149,11 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.off(config.userId)])
+        XCTAssertEqual(lux.actions, [.off(config.remoteWebhookUserId)])
     }
 
     func testForceBypassesSignalsUntilChanged() {
-        var config = PresenceEngine.Config()
+        let config = PresenceEngine.Config()
         let mic = FakeMicCamSignal()
         mic.nextMic = true
         let front = FakeFrontmostAppSignal()
@@ -179,7 +179,7 @@ final class PresenceEngineTests: XCTestCase {
         front.isMeetingApp = true
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.off(config.userId), .off(config.userId)])
+        XCTAssertEqual(lux.actions, [.off(config.remoteWebhookUserId), .off(config.remoteWebhookUserId)])
     }
 
     func testTick_meetingActiveAndVadSilentBeyondGrace_turnsYellow() {
@@ -209,7 +209,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.yellow(config.userId)])
+        XCTAssertEqual(lux.actions, [.yellow(config.remoteWebhookUserId)])
     }
 
     func testTick_meetingActiveAndVadActive_turnsRed() {
@@ -236,7 +236,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.on(config.userId)])
+        XCTAssertEqual(lux.actions, [.on(config.remoteWebhookUserId)])
     }
 
     func testTick_meetingActiveAndVadSilentWithinGrace_turnsRed() {
@@ -266,7 +266,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.on(config.userId)])
+        XCTAssertEqual(lux.actions, [.on(config.remoteWebhookUserId)])
     }
 
     func testTick_cameraActiveOverridesVadSilent_turnsRed() {
@@ -293,7 +293,7 @@ final class PresenceEngineTests: XCTestCase {
 
         engine.tick()
 
-        XCTAssertEqual(lux.actions, [.on(config.userId)])
+        XCTAssertEqual(lux.actions, [.on(config.remoteWebhookUserId)])
     }
 }
 

@@ -2,7 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>userId</key>
+    <key>transportMode</key>
+    <string>local</string>
+    <key>localWebhookBaseUrl</key>
+    <string>http://127.0.0.1:5383</string>
+    <key>localWebhookToken</key>
+    <string>luxafor</string>
+    <key>remoteWebhookUserId</key>
     <string>YOUR_USER_ID_HERE</string>
     <key>pollInterval</key>
     <real>2</real>
