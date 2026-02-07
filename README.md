@@ -100,7 +100,8 @@ All commands are executed from the repository root and require the Xcode toolcha
 - `swift build` produces a debug build in `.build/debug/LuxaforPresence`.
 - `swift run` produces a debug build and launches the menu bar app. The app started this way will be identified as its parent Terminal app (iTerm2, Ghostty, etc.).
 - `swift run -c release` produces an optimized build.
-- `swift test` produces a debug build and runs test suite `LuxaforPresence/Tests`.
+- `swift test --enable-code-coverage` produces a debug build, runs test suite `LuxaforPresence/Tests` and creates coverage data in `.build/debug/codecov`
+- `xcrun llvm-cov report .build/debug/LuxaforPresencePackageTests.xctest/Contents/MacOS/LuxaforPresencePackageTests     -instr-profile=.build/debug/codecov/default.profdata     -ignore-filename-regex=".build/|Tests/"     -use-color` test coverage report
 
 ## Packaging
 

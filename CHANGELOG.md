@@ -1,14 +1,17 @@
 # Changelog
 
-All notable changes to LuxaforPresence will be documented here. This project is currently in alpha; expect rapid iteration and possible breaking changes between versions.
+All notable changes to LuxaforPresence will be documented here.
 
-## [1.5.0] – Current (from `LuxaforPresence/Info.plist`)
+## [1.5.0] – Current
 
-- Current app version is `1.5.0` (from `CFBundleShortVersionString`).
-- “in meeting” state is detected using camera/mic activity, voice activity, plus checks for common meeting apps like Slack and Teams showing UI elements that indicate an active meeting.
-- build on MacOS 26 
+- Version `1.5.0` "Beta", the app actually works for Teams and Slack, needs more testing
+- Accessibliy Framework to detect Teams and Slack meetings
+- Voice Activity Detection (VAD) support
+- 3 states: in a meeting (muted) , in a meeting, Off
+- Support Local Luxafor Webhook
+- build on MacOS 26
 
-## [v0.01] – First Tagged Version (check via `git ls-remote --tags origin`)
+## [v0.01] – First Tagged Version
 
 - First tagged version on the remote is `v0.01`.
 - Initial menu bar app that infers “in meeting” state using mic/camera activity plus a foreground-app allowlist and updates the Luxafor flag accordingly.
