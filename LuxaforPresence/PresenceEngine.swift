@@ -225,6 +225,12 @@ final class PresenceEngine {
         apply(state)
     }
 
+    func clear(_ state: PresenceState) {
+        forcedState = nil
+        logger.log("Force invoked; new forced state \(state.rawValue, privacy: .public)")
+        apply(state)
+    }
+
     func tick() {
         logger.debug("Tick start; forced state \(String(describing: self.forcedState), privacy: .public)")
         if let s = self.forcedState {

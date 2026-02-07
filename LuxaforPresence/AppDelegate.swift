@@ -19,8 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStatusIcon(.unknown)
 
         let menu = NSMenu()
-        menu.addItem(withTitle: "Force ON (Red)", action: #selector(forceOn), keyEquivalent: "")
-        menu.addItem(withTitle: "Force OFF", action: #selector(forceOff), keyEquivalent: "")
+        menu.addItem(withTitle: "Force ON (Red)", action: #selector(forceOn), keyEquivalent: "o")
+        menu.addItem(withTitle: "Force OFF", action: #selector(forceOff), keyEquivalent: "f")
+        menu.addItem(withTitle: "Auto Detect", action: #selector(forceClear), keyEquivalent: "a")
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Preferences…", action: #selector(openPrefs), keyEquivalent: ",")
         menu.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q")
@@ -102,6 +103,7 @@ Open System Settings → Privacy & Security → Accessibility, then enable this 
 
     @objc private func forceOn()  { engine.force(.inMeeting) }
     @objc private func forceOff() { engine.force(.notMeeting) }
+    @objc private func forceClear() { engine.clear(.unknown) }
     @objc private func openPrefs() { /* simple NSAlert or NSPanel for remoteWebhookUserId etc. */ }
     @objc private func quit() { NSApp.terminate(nil) }
 }

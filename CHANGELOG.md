@@ -9,6 +9,7 @@ All notable changes to LuxaforPresence will be documented here.
 - Voice Activity Detection (VAD) support
 - 3 states: in a meeting (muted) , in a meeting, Off
 - Support Local Luxafor Webhook
+- BUGFIX:  Forced ON/OFF state would stick, requiring app restart to clear
 - build on MacOS 26
 
 ## [v0.01] – First Tagged Version
